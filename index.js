@@ -27,3 +27,24 @@ client.on('messageCreate', message => {
 });
 
 client.login(process.env.TOKEN);
+if (message.content.toLowerCase().includes("chán học")) {
+  message.reply(`Alo Vũ à Vũ...
+Không anh ơi 😔
+
+Chán học à?
+
+Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
+
+"Học, học nữa, học mãi" - V.I. Lenin
+
+"Đừng lựa chọn an nhàn khi còn trẻ".
+
+"Học tập như thế đi thuyền ngược dòng nước. Bạn phải tiến lên phía trước nếu không muốn bị tụt lại phía sau".
+
+"Lựa chọn hôm nay vẽ nên kết quả của ngày mai".
+
+💪 Hãy luôn nhớ:
+Nỗ lực hôm nay = thành công ngày mai!
+
+📚 Đi học tiếp đi bro 😎`);
+}
