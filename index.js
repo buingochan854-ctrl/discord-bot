@@ -24,11 +24,10 @@ client.on('messageCreate', message => {
   if (message.content.toLowerCase().includes("alo vũ")) {
     message.reply("Không anh ơi");
   }
-});
 
-client.login(process.env.TOKEN);
-if (message.content.toLowerCase().includes("chán học")) {
-  message.reply(`Alo Vũ à Vũ...
+  // Meme + động lực
+  if (message.content.toLowerCase().includes("chán học")) {
+    message.reply(`Alo Vũ à Vũ...
 Không anh ơi 😔
 
 Chán học à?
@@ -47,4 +46,7 @@ Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước 
 Nỗ lực hôm nay = thành công ngày mai!
 
 📚 Đi học tiếp đi bro 😎`);
-}
+  }
+});
+
+client.login(process.env.TOKEN);
