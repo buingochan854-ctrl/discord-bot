@@ -20,106 +20,44 @@ client.on('messageCreate', message => {
 
   const content = message.content.toLowerCase();
 
-  // Lệnh test
+  // ping
   if (content === 'ping') {
-    message.reply('pong 🏓');
+    return message.reply('pong 🏓');
   }
 
-  // Meme alo Vũ
-  if (content.includes("alo vũ")) {
-    message.reply("Không anh ơi");
-  }
-
-  // Meme + động lực
-  if (content.includes("chán học")) {
-    message.reply(`Alo Vũ à Vũ...
-Không anh ơi 😔
-
-Chán học à?
-
-Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
-
-"Học, học nữa, học mãi" - V.I. Lenin
-
-"Đừng lựa chọn an nhàn khi còn trẻ".
-
-"Học tập như thế đi thuyền ngược dòng nước. Bạn phải tiến lên phía trước nếu không muốn bị tụt lại phía sau".
-
-"Lựa chọn hôm nay vẽ nên kết quả của ngày mai".
-
-💪 Hãy luôn nhớ:
-Nỗ lực hôm nay = thành công ngày mai!
-
-📚 Đi học tiếp đi bro 😎`);
-  }
-
-  // Test thêm (tránh nhầm lỗi)
+  // test
   if (content === 'all client') {
-    message.reply('Bot đang hoạt động bình thường 😎');
-  }
-});
-const { Client, GatewayIntentBits } = require('discord.js');
-
-// Tạo client
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
-});
-
-// Khi bot online
-client.on('ready', () => {
-  console.log('Bot đang trực tuyến!');
-});
-
-// Khi có tin nhắn
-client.on('messageCreate', message => {
-  if (message.author.bot) return;
-
-  const content = message.content.toLowerCase();
-
-  // Lệnh test
-  if (content === 'ping') {
-    message.reply('pong 🏓');
+    return message.reply('Bot đang hoạt động bình thường 😎');
   }
 
-  // Meme alo Vũ
+  // alo vũ
   if (content.includes("alo vũ")) {
-    message.reply("Không anh ơi");
+    return message.reply("Không anh ơi");
   }
 
-  // Meme + động lực
+  // ê
+  if (content.includes("ê")) {
+    return message.reply("im đi ko ai rep đâu 😭");
+  }
+
+  // chán học
   if (content.includes("chán học")) {
-    message.reply(`Alo Vũ à Vũ...
-Không anh ơi 😔
+    return message.reply(`Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
 
-Chán học à?
-
-Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
-
-"Học, học nữa, học mãi" - V.I. Lenin
-
-"Đừng lựa chọn an nhàn khi còn trẻ".
-
-"Học tập như thế đi thuyền ngược dòng nước. Bạn phải tiến lên phía trước nếu không muốn bị tụt lại phía sau".
-
-"Lựa chọn hôm nay vẽ nên kết quả của ngày mai".
-
-💪 Hãy luôn nhớ:
-Nỗ lực hôm nay = thành công ngày mai!
-
-📚 Đi học tiếp đi bro 😎`);
+💪 Nỗ lực hôm nay = thành công ngày mai!`);
   }
 
-  // Test thêm (tránh nhầm lỗi)
-  if (content === 'all client') {
-    message.reply('Bot đang hoạt động bình thường 😎');
+  // TB Delta
+  if (content.includes("tb delta")) {
+    return message.reply(`VIET : Tb: Hiện tại, Client Delta đã chính thức mua bản quyền và cấm tất cả những bản Client VNG do người Việt làm như: **NakNohack, DatMod, MuyMythicos, TAIYTB,...**
+
+Nên bây giờ, Cộng Đồng CLIENT VIỆT NAM chính thức không thể làm Delta VNG được nữa.
+
+Cảm ơn bạn đã lắng nghe 🙏
+
+- <@1455796719378895022> -`);
   }
 });
-if (content.includes("ê")) {
-  message.reply("im đi ko ai rep đâu 😭");
-}
-// Login bằng TOKEN (Render / Replit đều dùng được)
+
+// login
 client.login(process.env.TOKEN);
