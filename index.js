@@ -1,6 +1,10 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  StringSelectMenuBuilder
+} = require('discord.js');
 
-// Tạo client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -9,55 +13,94 @@ const client = new Client({
   ]
 });
 
-// Khi bot online
 client.on('ready', () => {
-  console.log('Bot đang trực tuyến!');
+  console.log('Bot online!');
 });
 
-// Khi có tin nhắn
-client.on('messageCreate', message => {
+client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const content = message.content.toLowerCase();
+  const msg = message.content.toLowerCase();
 
-  // ping
-  if (content === 'ping') {
+  // Lệnh test
+  if (msg === 'ping') {
     return message.reply('pong 🏓');
   }
 
-  // test
-  if (content === 'all client') {
-    return message.reply('Bot đang hoạt động bình thường 😎');
-  }
-
-  // alo vũ
-  if (content.includes("alo vũ")) {
+  // Meme alo Vũ
+  if (msg.includes("alo vũ")) {
     return message.reply("Không anh ơi");
   }
 
-  // ê
-  if (content.includes("ê")) {
-    return message.reply("im đi ko ai rep đâu 😭");
+  // Meme + động lực
+  if (msg.includes("chán học")) {
+    return message.reply(`Alo Vũ à Vũ...
+Không anh ơi 😔
+
+Chán học à?
+
+Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
+
+"Học, học nữa, học mãi" - V.I. Lenin
+
+"Đừng lựa chọn an nhàn khi còn trẻ".
+
+"Học tập như thế đi thuyền ngược dòng nước. Bạn phải tiến lên phía trước nếu không muốn bị tụt lại phía sau".
+
+"Lựa chọn hôm nay vẽ nên kết quả của ngày mai".
+
+💪 Hãy luôn nhớ:
+Nỗ lực hôm nay = thành công ngày mai!
+
+📚 Đi học tiếp đi bro 😎`);
   }
 
-  // chán học
-  if (content.includes("chán học")) {
-    return message.reply(`Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
+  // MENU All Client
+  if (msg === 'all client') {
 
-💪 Nỗ lực hôm nay = thành công ngày mai!`);
-  }
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId('select_os')
+      .setPlaceholder('👉 Chọn hệ điều hành')
+      .addOptions([
+        { label: 'Android', value: 'android' },
+        { label: 'iOS', value: 'ios' }
+      ]);
 
-  // TB Delta
-  if (content.includes("tb delta")) {
-    return message.reply(`VIET : Tb: Hiện tại, Client Delta đã chính thức mua bản quyền và cấm tất cả những bản Client VNG do người Việt làm như: **NakNohack, DatMod, MuyMythicos, TAIYTB,...**
+    const row = new ActionRowBuilder().addComponents(menu);
 
-Nên bây giờ, Cộng Đồng CLIENT VIỆT NAM chính thức không thể làm Delta VNG được nữa.
-
-Cảm ơn bạn đã lắng nghe 🙏
-
-- <@1455796719378895022> -`);
+    await message.reply({
+      content: '📦 Chọn hệ điều hành bạn muốn:',
+      components: [row]
+    });
   }
 });
 
-// login
+// Xử lý chọn menu
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
+
+  const choice = interaction.values[0];
+
+  if (choice === 'android') {
+    await interaction.reply({
+      content: `**CLIENT ANDROID**
+- DELTA VNG
+- CODEX VNG
+- Arceus Neo VNG`,
+      ephemeral: true
+    });
+  }
+
+  if (choice === 'ios') {
+    await interaction.reply({
+      content: `Do IOS đang ra khá chậm client, mọi người thông cảm nhé
+
+**CLIENT IOS**
+- DELTA VNG
+- SKIBX VNG`,
+      ephemeral: true
+    });
+  }
+});
+
 client.login(process.env.TOKEN);
