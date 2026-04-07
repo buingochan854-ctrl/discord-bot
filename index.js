@@ -1,3 +1,4 @@
+const express = require('express');
 const {
   Client,
   GatewayIntentBits,
@@ -5,6 +6,18 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
+// ===== WEB SERVER (để giữ bot online) =====
+const app = express();
+
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
+
+app.listen(3000, () => {
+  console.log('Web server chạy rồi');
+});
+
+// ===== DISCORD BOT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -22,7 +35,7 @@ client.on('messageCreate', async (message) => {
 
   const msg = message.content.toLowerCase();
 
-  // Lệnh test
+  // Ping
   if (msg === 'ping') {
     return message.reply('pong 🏓');
   }
@@ -32,7 +45,7 @@ client.on('messageCreate', async (message) => {
     return message.reply("Không anh ơi");
   }
 
-  // Meme + động lực
+  // Động lực
   if (msg.includes("chán học")) {
     return message.reply(`Alo Vũ à Vũ...
 Không anh ơi 😔
@@ -55,9 +68,14 @@ Nỗ lực hôm nay = thành công ngày mai!
 📚 Đi học tiếp đi bro 😎`);
   }
 
-  // MENU All Client
-  if (msg === 'all client') {
+  // Link Delta VNG
+  if (msg.includes("delta vng")) {
+    return message.reply(`Delta VNG:
+https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
+  }
 
+  // Menu chọn client
+  if (msg === 'all client') {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('select_os')
       .setPlaceholder('👉 Chọn hệ điều hành')
@@ -75,7 +93,7 @@ Nỗ lực hôm nay = thành công ngày mai!
   }
 });
 
-// Xử lý chọn menu
+// Xử lý menu
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isStringSelectMenu()) return;
 
@@ -93,9 +111,7 @@ client.on('interactionCreate', async (interaction) => {
 
   if (choice === 'ios') {
     await interaction.reply({
-      content: `Do IOS đang ra khá chậm client, mọi người thông cảm nhé
-
-**CLIENT IOS**
+      content: `**CLIENT IOS**
 - DELTA VNG
 - SKIBX VNG`,
       ephemeral: true
@@ -103,4 +119,5 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// ===== LOGIN =====
 client.login(process.env.TOKEN);
