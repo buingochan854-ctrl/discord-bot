@@ -6,7 +6,7 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
-// ===== WEB SERVER (để giữ bot online) =====
+// ===== WEB SERVER (fix lỗi Render) =====
 const app = express();
 
 app.get('/', (req, res) => {
