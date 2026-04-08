@@ -6,7 +6,7 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
-// ===== WEB SERVER (fix lỗi Render) =====
+// ===== WEB SERVER =====
 const app = express();
 
 app.get('/', (req, res) => {
@@ -30,22 +30,24 @@ client.on('ready', () => {
   console.log('Bot online!');
 });
 
+// ===== BIẾN NỐI TỪ =====
+let lastWord = null;
+
+// ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase();
+  const msg = message.content.toLowerCase().trim();
 
-  // Ping
+  // ===== LỆNH CƠ BẢN =====
   if (msg === 'ping') {
     return message.reply('pong 🏓');
   }
 
-  // Meme alo Vũ
   if (msg.includes("alo vũ")) {
     return message.reply("Không anh ơi");
   }
 
-  // Động lực
   if (msg.includes("chán học")) {
     return message.reply(`Alo Vũ à Vũ...
 Không anh ơi 😔
@@ -58,24 +60,38 @@ Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước 
 
 "Đừng lựa chọn an nhàn khi còn trẻ".
 
-"Học tập như thế đi thuyền ngược dòng nước. Bạn phải tiến lên phía trước nếu không muốn bị tụt lại phía sau".
-
-"Lựa chọn hôm nay vẽ nên kết quả của ngày mai".
-
-💪 Hãy luôn nhớ:
-Nỗ lực hôm nay = thành công ngày mai!
-
-📚 Đi học tiếp đi bro 😎`);
+💪 Nỗ lực hôm nay = thành công ngày mai!`);
   }
 
-  // Link Delta VNG
+  // ===== LINK CLIENT =====
+
+  // Delta iOS (đặt trước)
+  if (msg.includes("delta vng ios")) {
+    return message.reply(`Delta VNG iOS:
+https://www.mediafire.com/file/afmig367b9v2hr5/DeltaVN+V57+HuyMythic.ipa/file`);
+  }
+
+  // Delta Android
   if (msg.includes("delta vng")) {
     return message.reply(`Delta VNG:
 https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
   }
 
-  // Menu chọn client
+  // CodeX
+  if (msg.includes("codex vng")) {
+    return message.reply(`CODEX VNG V2.711 BY **NAKNOHACK**
+https://www.mediafire.com/file/i43otfr7w6ukcod/Codex%25C3%2597VNG_v2.711.apk/file`);
+  }
+
+  // Arceus Neo
+  if (msg.includes("arceus neo vng")) {
+    return message.reply(`ARCEUS NEO VNG V2.711 BY **NAKNOHACK**
+https://www.mediafire.com/file/i5g2c4tasweprps/Arceus_NEO%25C3%2597VNG_v2.711.apk/file`);
+  }
+
+  // ===== MENU =====
   if (msg === 'all client') {
+
     const menu = new StringSelectMenuBuilder()
       .setCustomId('select_os')
       .setPlaceholder('👉 Chọn hệ điều hành')
@@ -86,14 +102,38 @@ https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`
 
     const row = new ActionRowBuilder().addComponents(menu);
 
-    await message.reply({
+    return message.reply({
       content: '📦 Chọn hệ điều hành bạn muốn:',
       components: [row]
     });
   }
+
+  // ===== GAME NỐI TỪ =====
+
+  const words = msg.split(" ");
+  if (words.length >= 2) {
+
+    const first = words[0];
+    const last = words[words.length - 1];
+
+    if (!lastWord) {
+      lastWord = last;
+      return message.reply(`🎮 Bắt đầu nối từ!
+Từ tiếp theo phải bắt đầu bằng: **${lastWord}**`);
+    }
+
+    if (first !== lastWord) {
+      return message.reply(`❌ Sai rồi!
+Phải bắt đầu bằng: **${lastWord}**`);
+    }
+
+    lastWord = last;
+    return message.reply(`✅ Chuẩn! Từ tiếp theo: **${lastWord}**`);
+  }
+
 });
 
-// Xử lý menu
+// ===== XỬ LÝ MENU =====
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isStringSelectMenu()) return;
 
@@ -104,7 +144,7 @@ client.on('interactionCreate', async (interaction) => {
       content: `**CLIENT ANDROID**
 - DELTA VNG
 - CODEX VNG
-- Arceus Neo VNG`,
+- ARCEUS NEO VNG`,
       ephemeral: true
     });
   }
