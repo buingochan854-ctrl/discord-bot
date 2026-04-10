@@ -1,13 +1,27 @@
 const express = require('express');
-const { Client, GatewayIntentBits } = require('discord.js');
+const axios = require('axios');
+const {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  StringSelectMenuBuilder
+} = require('discord.js');
 
 // ===== DEBUG TOKEN =====
-console.log("TOKEN:", process.env.TOKEN ? "OK" : "THIẾU");
+console.log("TOKEN:", process.env.TOKEN);
 
-// ===== WEB SERVER =====
+// ===== ANTI CRASH =====
+process.on('unhandledRejection', err => {
+  console.error('❌ Unhandled Rejection:', err);
+});
+process.on('uncaughtException', err => {
+  console.error('❌ Uncaught Exception:', err);
+});
+
+// ===== WEB SERVER (KEEP ALIVE) =====
 const app = express();
 app.get('/', (req, res) => res.send('Bot is alive!'));
-app.listen(3000, () => console.log('Web OK'));
+app.listen(3000, () => console.log('🌐 Web server OK'));
 
 // ===== DISCORD BOT =====
 const client = new Client({
@@ -18,62 +32,128 @@ const client = new Client({
   ]
 });
 
+// ===== READY =====
 client.on('ready', () => {
-  console.log(`Bot online: ${client.user.tag}`);
+  console.log(`🤖 Bot online: ${client.user.tag}`);
 });
 
-client.on('messageCreate', message => {
-  if (message.author.bot) return;
+// ===== ANTI SPAM =====
+const cooldown = new Map();
 
-  const msg = message.content.toLowerCase();
+function isCooldown(userId) {
+  const now = Date.now();
+  const last = cooldown.get(userId) || 0;
 
-  // ===== PING =====
-  if (msg === 'ping') {
-    return message.reply('pong 🏓');
+  if (now - last < 2000) return true; // 2s delay
+
+  cooldown.set(userId, now);
+  return false;
+}
+
+// ===== DOWNLOAD VIDEO (SAFE API) =====
+async function downloadVideo(url) {
+  try {
+    const res = await axios.get(
+      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
+      { timeout: 7000 }
+    );
+
+    return res.data?.video || null;
+  } catch (err) {
+    console.log("API lỗi:", err.message);
+    return null;
   }
+}
 
-  // ===== MEME ALO VŨ =====
-  if (msg.includes('alo vũ')) {
-    return message.reply('Không anh ơi 😔');
+// ===== MESSAGE =====
+client.on('messageCreate', async (message) => {
+  try {
+    if (message.author.bot) return;
+
+    const msg = message.content.toLowerCase().trim();
+    console.log("📩 MSG:", msg);
+
+    // ===== ANTI SPAM =====
+    if (isCooldown(message.author.id)) return;
+
+    // ===== LỆNH =====
+    if (msg === 'ping') {
+      return message.reply('pong 🏓');
+    }
+
+    if (msg.includes("alo vũ")) {
+      return message.reply("Không anh ơi 😎");
+    }
+
+    // ===== AUTO VIDEO =====
+    if (
+      msg.includes("tiktok.com") ||
+      msg.includes("youtube.com") ||
+      msg.includes("youtu.be")
+    ) {
+      const video = await downloadVideo(message.content);
+
+      if (!video) {
+        return message.reply("❌ Không tải được video!");
+      }
+
+      return message.reply(`🎬 Video:\n${video}`);
+    }
+
+    // ===== MENU =====
+    if (msg === 'all client') {
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('select_os')
+        .setPlaceholder('👉 Chọn hệ điều hành')
+        .addOptions([
+          { label: 'Android', value: 'android' },
+          { label: 'iOS', value: 'ios' }
+        ]);
+
+      const row = new ActionRowBuilder().addComponents(menu);
+
+      return message.reply({
+        content: '📦 Chọn hệ điều hành:',
+        components: [row]
+      });
+    }
+
+  } catch (err) {
+    console.error('❌ Lỗi message:', err);
   }
-
-  // ===== CHÁN HỌC =====
-  if (msg.includes('chán học')) {
-    return message.reply(`Alo Vũ à Vũ...
-Không anh ơi 😔
-
-Chán học à?
-
-Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
-
-"Học, học nữa, học mãi" - V.I. Lenin
-"Đừng lựa chọn an nhàn khi còn trẻ"
-"Học tập như thế đi thuyền ngược dòng nước"
-
-🔥 Cố lên bro!`);
-  }
-
-  // ===== DELTA VNG =====
-  if (msg.includes('delta vng')) {
-    return message.reply('Delta VNG https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file');
-  }
-
-  // ===== CODEX VNG =====
-  if (msg.includes('codex vng')) {
-    return message.reply('CODEX VNG V2.711 BY NAKNOHACK https://www.mediafire.com/file/i43otfr7w6ukcod/Codex.apk/file');
-  }
-
-  // ===== ARCEUS VNG =====
-  if (msg.includes('arceus neo vng')) {
-    return message.reply('ARCEUS NEO VNG https://www.mediafire.com/file/i5g2c4tasweprps/Arceus.apk/file');
-  }
-
-  // ===== DELTA IOS =====
-  if (msg.includes('delta vng ios')) {
-    return message.reply('https://www.mediafire.com/file/afmig367b9v2hr5/DeltaVN+V57+HuyMythic.ipa/file');
-  }
-
 });
 
-// ===== LOGIN =====
-client.login(process.env.TOKEN);
+// ===== INTERACTION =====
+client.on('interactionCreate', async (interaction) => {
+  try {
+    if (!interaction.isStringSelectMenu()) return;
+
+    const choice = interaction.values[0];
+
+    if (choice === 'android') {
+      await interaction.reply({
+        content: `ANDROID:
+- DELTA VNG
+- CODEX VNG
+- ARCEUS`,
+        ephemeral: true
+      });
+    }
+
+    if (choice === 'ios') {
+      await interaction.reply({
+        content: `IOS:
+- DELTA VNG`,
+        ephemeral: true
+      });
+    }
+
+  } catch (err) {
+    console.error('❌ Lỗi interaction:', err);
+  }
+});
+
+// ===== LOGIN (QUAN TRỌNG NHẤT) =====
+client.login(process.env.TOKEN)
+  .then(() => console.log("✅ LOGIN SUCCESS"))
+  .catch(err => console.error("❌ LOGIN FAIL:", err));
