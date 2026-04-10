@@ -7,9 +7,6 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
-// ===== DEBUG TOKEN =====
-console.log("TOKEN:", process.env.TOKEN);
-
 // ===== ANTI CRASH =====
 process.on('unhandledRejection', err => {
   console.error('❌ Unhandled Rejection:', err);
@@ -18,7 +15,7 @@ process.on('uncaughtException', err => {
   console.error('❌ Uncaught Exception:', err);
 });
 
-// ===== WEB SERVER (KEEP ALIVE) =====
+// ===== WEB SERVER =====
 const app = express();
 app.get('/', (req, res) => res.send('Bot is alive!'));
 app.listen(3000, () => console.log('🌐 Web server OK'));
@@ -37,20 +34,7 @@ client.on('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
 
-// ===== ANTI SPAM =====
-const cooldown = new Map();
-
-function isCooldown(userId) {
-  const now = Date.now();
-  const last = cooldown.get(userId) || 0;
-
-  if (now - last < 2000) return true; // 2s delay
-
-  cooldown.set(userId, now);
-  return false;
-}
-
-// ===== DOWNLOAD VIDEO (SAFE API) =====
+// ===== DOWNLOAD VIDEO =====
 async function downloadVideo(url) {
   try {
     const res = await axios.get(
@@ -73,9 +57,6 @@ client.on('messageCreate', async (message) => {
     const msg = message.content.toLowerCase().trim();
     console.log("📩 MSG:", msg);
 
-    // ===== ANTI SPAM =====
-    if (isCooldown(message.author.id)) return;
-
     // ===== LỆNH =====
     if (msg === 'ping') {
       return message.reply('pong 🏓');
@@ -83,6 +64,19 @@ client.on('messageCreate', async (message) => {
 
     if (msg.includes("alo vũ")) {
       return message.reply("Không anh ơi 😎");
+    }
+
+    if (msg.includes("chán học")) {
+      return message.reply(`Alo Vũ à Vũ...
+Không anh ơi 😔
+
+Chán học à?
+
+Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
+
+"Học, học nữa, học mãi"
+
+💪 Cố lên bro!`);
     }
 
     // ===== AUTO VIDEO =====
@@ -98,6 +92,12 @@ client.on('messageCreate', async (message) => {
       }
 
       return message.reply(`🎬 Video:\n${video}`);
+    }
+
+    // ===== LINK DELTA =====
+    if (msg.includes("delta vng")) {
+      return message.reply(`Delta VNG:
+https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
     }
 
     // ===== MENU =====
@@ -153,7 +153,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== LOGIN (QUAN TRỌNG NHẤT) =====
+// ===== LOGIN =====
 client.login(process.env.TOKEN)
   .then(() => console.log("✅ LOGIN SUCCESS"))
   .catch(err => console.error("❌ LOGIN FAIL:", err));
