@@ -2,9 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const {
   Client,
-  GatewayIntentBits,
-  ActionRowBuilder,
-  StringSelectMenuBuilder
+  GatewayIntentBits
 } = require('discord.js');
 
 // ===== ANTI CRASH =====
@@ -36,19 +34,18 @@ function isCooldown(userId) {
   const now = Date.now();
   const last = cooldown.get(userId) || 0;
 
-  if (now - last < 2000) return true; // 2s delay
-
+  if (now - last < 2000) return true;
   cooldown.set(userId, now);
   return false;
 }
 
-// ===== DOWNLOAD VIDEO SAFE =====
+// ===== DOWNLOAD VIDEO =====
 async function downloadVideo(url) {
   try {
-    const res = await axios.get(`https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`, {
-      timeout: 5000
-    });
-
+    const res = await axios.get(
+      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
+      { timeout: 5000 }
+    );
     return res.data.video || null;
   } catch {
     return null;
@@ -68,81 +65,56 @@ client.on('messageCreate', async (message) => {
     const msg = message.content.toLowerCase().trim();
     console.log("MSG:", msg);
 
+    // ===== LỆNH KHÔNG BỊ COOLDOWN =====
+    if (msg === 'ping') return message.reply('pong 🏓');
+
+    if (msg.includes("alo vũ")) {
+      return message.reply("Không anh ơi");
+    }
+
+    if (msg.includes("chán học")) {
+      return message.reply(`Alo Vũ à Vũ...
+Không anh ơi 😔
+
+Chán học à?
+
+Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
+
+"Học, học nữa, học mãi" - V.I. Lenin
+
+💪 Nỗ lực hôm nay = thành công ngày mai!
+📚 Đi học tiếp đi bro 😎`);
+    }
+
     // ===== ANTI SPAM =====
     if (isCooldown(message.author.id)) return;
 
-    // ===== LỆNH =====
-    if (msg === 'ping') return message.reply('pong 🏓');
-
-    if (msg.includes("alo vũ")) return message.reply("Không anh ơi");
-
-    // ===== AUTO VIDEO =====
+    // ===== AUTO DOWNLOAD VIDEO =====
     if (
       msg.includes("tiktok.com") ||
       msg.includes("youtube.com") ||
       msg.includes("youtu.be")
     ) {
-      const video = await downloadVideo(message.content);
+      try {
+        const video = await downloadVideo(message.content);
 
-      if (!video) {
-        return message.reply("❌ Không tải được video!");
+        if (!video) {
+          return message.reply("❌ Không tải được video!");
+        }
+
+        return message.reply(`🎬 Video:\n${video}`);
+      } catch (err) {
+        console.error(err);
+        return message.reply("❌ Lỗi tải video!");
       }
-
-      return message.reply(`🎬 Video:\n${video}`);
-    }
-
-    // ===== MENU =====
-    if (msg === 'all client') {
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId('select_os')
-        .setPlaceholder('👉 Chọn hệ điều hành')
-        .addOptions([
-          { label: 'Android', value: 'android' },
-          { label: 'iOS', value: 'ios' }
-        ]);
-
-      const row = new ActionRowBuilder().addComponents(menu);
-
-      return message.reply({
-        content: '📦 Chọn hệ điều hành:',
-        components: [row]
-      });
     }
 
   } catch (err) {
-    console.error('Lỗi message:', err);
-  }
-});
-
-// ===== INTERACTION =====
-client.on('interactionCreate', async (interaction) => {
-  try {
-    if (!interaction.isStringSelectMenu()) return;
-
-    const choice = interaction.values[0];
-
-    if (choice === 'android') {
-      await interaction.reply({
-        content: `ANDROID:
-- DELTA VNG
-- CODEX VNG
-- ARCEUS`,
-        ephemeral: true
-      });
-    }
-
-    if (choice === 'ios') {
-      await interaction.reply({
-        content: `IOS:
-- DELTA VNG`,
-        ephemeral: true
-      });
-    }
-
-  } catch (err) {
-    console.error('Lỗi interaction:', err);
+    console.error("Lỗi message:", err);
   }
 });
 
 // ===== LOGIN =====
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN)
+  .then(() => console.log("Đã login Discord"))
+  .catch(err => console.error("Lỗi token:", err));
