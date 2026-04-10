@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const {
   Client,
   GatewayIntentBits,
@@ -30,62 +31,72 @@ client.on('ready', () => {
   console.log('Bot online!');
 });
 
+// ===== FUNCTION DOWNLOAD VIDEO (PRO) =====
+async function downloadVideo(url) {
+
+  // API 1 (chính)
+  try {
+    const res = await axios.get(`https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`);
+    if (res.data.video) {
+      return res.data.video;
+    }
+  } catch {}
+
+  // API 2 (fallback)
+  try {
+    const res = await axios.get(`https://api.savetube.me/download?url=${encodeURIComponent(url)}`);
+    if (res.data.data && res.data.data.download) {
+      return res.data.data.download;
+    }
+  } catch {}
+
+  // API 3 (backup)
+  try {
+    const res = await axios.get(`https://api.ttdownloader.com/?url=${encodeURIComponent(url)}`);
+    if (res.data.video) {
+      return res.data.video;
+    }
+  } catch {}
+
+  return null;
+}
+
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
   const msg = message.content.toLowerCase().trim();
 
-  // ===== LỆNH CƠ BẢN =====
-  if (msg === 'ping') {
-    return message.reply('pong 🏓');
-  }
+  // ===== LỆNH =====
+  if (msg === 'ping') return message.reply('pong 🏓');
 
-  if (msg.includes("alo vũ")) {
-    return message.reply("Không anh ơi");
-  }
+  if (msg.includes("alo vũ")) return message.reply("Không anh ơi");
 
-  if (msg.includes("chán học")) {
-    return message.reply(`Alo Vũ à Vũ...
-Không anh ơi 😔
+  // ===== AUTO VIDEO =====
+  if (
+    msg.includes("tiktok.com") ||
+    msg.includes("youtube.com") ||
+    msg.includes("youtu.be")
+  ) {
+    try {
+      const video = await downloadVideo(message.content);
 
-Chán học à?
+      if (!video) {
+        return message.reply("❌ Không lấy được video (API có thể lỗi)");
+      }
 
-Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
+      return message.reply({
+        content: "🎬 Video của bạn:",
+        files: [video]
+      });
 
-"Học, học nữa, học mãi" - V.I. Lenin
-
-💪 Nỗ lực hôm nay = thành công ngày mai!`);
-  }
-
-  // ===== LINK CLIENT =====
-
-  // Delta iOS
-  if (msg.includes("delta vng ios")) {
-    return message.reply(`Delta VNG iOS:
-https://www.mediafire.com/file/afmig367b9v2hr5/DeltaVN+V57+HuyMythic.ipa/file`);
-  }
-
-  // Delta Android
-  if (msg.includes("delta vng")) {
-    return message.reply(`Delta VNG:
-https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
-  }
-
-  // CodeX
-  if (msg.includes("codex vng")) {
-    return message.reply(`CODEX VNG V2.711 BY **NAKNOHACK**
-https://www.mediafire.com/file/i43otfr7w6ukcod/Codex.apk/file`);
-  }
-
-  // Arceus Neo
-  if (msg.includes("arceus neo vng")) {
-    return message.reply(`ARCEUS NEO VNG V2.711 BY **NAKNOHACK**
-https://www.mediafire.com/file/i5g2c4tasweprps/Arceus.apk/file`);
+    } catch (err) {
+      console.log(err);
+      return message.reply("❌ Lỗi tải video!");
+    }
   }
 
   // ===== MENU =====
   if (msg === 'all client') {
-
     const menu = new StringSelectMenuBuilder()
       .setCustomId('select_os')
       .setPlaceholder('👉 Chọn hệ điều hành')
@@ -97,14 +108,14 @@ https://www.mediafire.com/file/i5g2c4tasweprps/Arceus.apk/file`);
     const row = new ActionRowBuilder().addComponents(menu);
 
     return message.reply({
-      content: '📦 Chọn hệ điều hành bạn muốn:',
+      content: '📦 Chọn hệ điều hành:',
       components: [row]
     });
   }
 
 });
 
-// ===== XỬ LÝ MENU =====
+// ===== MENU SELECT =====
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isStringSelectMenu()) return;
 
@@ -112,19 +123,18 @@ client.on('interactionCreate', async (interaction) => {
 
   if (choice === 'android') {
     await interaction.reply({
-      content: `**CLIENT ANDROID**
+      content: `ANDROID:
 - DELTA VNG
 - CODEX VNG
-- ARCEUS NEO VNG`,
+- ARCEUS`,
       ephemeral: true
     });
   }
 
   if (choice === 'ios') {
     await interaction.reply({
-      content: `**CLIENT IOS**
-- DELTA VNG
-- SKIBX VNG`,
+      content: `IOS:
+- DELTA VNG`,
       ephemeral: true
     });
   }
