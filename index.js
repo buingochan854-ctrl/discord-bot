@@ -7,6 +7,9 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
+// ===== DEBUG TOKEN =====
+console.log("CHECK TOKEN:", process.env.TOKEN ? "CÓ TOKEN" : "KHÔNG CÓ TOKEN");
+
 // ===== ANTI CRASH =====
 process.on('unhandledRejection', err => {
   console.error('❌ Unhandled Rejection:', err);
@@ -30,24 +33,9 @@ const client = new Client({
 });
 
 // ===== READY =====
-client.on('ready', () => {
+client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
-
-// ===== DOWNLOAD VIDEO =====
-async function downloadVideo(url) {
-  try {
-    const res = await axios.get(
-      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
-      { timeout: 7000 }
-    );
-
-    return res.data?.video || null;
-  } catch (err) {
-    console.log("API lỗi:", err.message);
-    return null;
-  }
-}
 
 // ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
@@ -57,7 +45,6 @@ client.on('messageCreate', async (message) => {
     const msg = message.content.toLowerCase().trim();
     console.log("📩 MSG:", msg);
 
-    // ===== LỆNH =====
     if (msg === 'ping') {
       return message.reply('pong 🏓');
     }
@@ -70,37 +57,14 @@ client.on('messageCreate', async (message) => {
       return message.reply(`Alo Vũ à Vũ...
 Không anh ơi 😔
 
-Chán học à?
-
-Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
-
-"Học, học nữa, học mãi"
-
 💪 Cố lên bro!`);
     }
 
-    // ===== AUTO VIDEO =====
-    if (
-      msg.includes("tiktok.com") ||
-      msg.includes("youtube.com") ||
-      msg.includes("youtu.be")
-    ) {
-      const video = await downloadVideo(message.content);
-
-      if (!video) {
-        return message.reply("❌ Không tải được video!");
-      }
-
-      return message.reply(`🎬 Video:\n${video}`);
-    }
-
-    // ===== LINK DELTA =====
     if (msg.includes("delta vng")) {
       return message.reply(`Delta VNG:
 https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
     }
 
-    // ===== MENU =====
     if (msg === 'all client') {
       const menu = new StringSelectMenuBuilder()
         .setCustomId('select_os')
@@ -134,8 +98,7 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply({
         content: `ANDROID:
 - DELTA VNG
-- CODEX VNG
-- ARCEUS`,
+- CODEX VNG`,
         ephemeral: true
       });
     }
@@ -153,7 +116,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== LOGIN =====
+// ===== LOGIN DEBUG =====
 client.login(process.env.TOKEN)
   .then(() => console.log("✅ LOGIN SUCCESS"))
-  .catch(err => console.error("❌ LOGIN FAIL:", err));
+  .catch(err => console.error("❌ LOGIN FAIL:", err.message));
