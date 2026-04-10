@@ -18,10 +18,18 @@ process.on('uncaughtException', err => {
   console.error('❌ Uncaught Exception:', err);
 });
 
-// ===== WEB SERVER =====
+// ===== WEB SERVER (FIX PORT RENDER) =====
 const app = express();
-app.get('/', (req, res) => res.send('Bot is alive!'));
-app.listen(3000, () => console.log('🌐 Web server OK'));
+
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🌐 Web server chạy cổng ${PORT}`);
+});
 
 // ===== DISCORD BOT =====
 const client = new Client({
@@ -37,6 +45,21 @@ client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
 
+// ===== DOWNLOAD VIDEO =====
+async function downloadVideo(url) {
+  try {
+    const res = await axios.get(
+      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
+      { timeout: 7000 }
+    );
+
+    return res.data?.video || null;
+  } catch (err) {
+    console.log("API lỗi:", err.message);
+    return null;
+  }
+}
+
 // ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
   try {
@@ -45,6 +68,7 @@ client.on('messageCreate', async (message) => {
     const msg = message.content.toLowerCase().trim();
     console.log("📩 MSG:", msg);
 
+    // ===== LỆNH =====
     if (msg === 'ping') {
       return message.reply('pong 🏓');
     }
@@ -65,6 +89,22 @@ Không anh ơi 😔
 https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
     }
 
+    // ===== AUTO VIDEO =====
+    if (
+      msg.includes("tiktok.com") ||
+      msg.includes("youtube.com") ||
+      msg.includes("youtu.be")
+    ) {
+      const video = await downloadVideo(message.content);
+
+      if (!video) {
+        return message.reply("❌ Không tải được video!");
+      }
+
+      return message.reply(`🎬 Video:\n${video}`);
+    }
+
+    // ===== MENU =====
     if (msg === 'all client') {
       const menu = new StringSelectMenuBuilder()
         .setCustomId('select_os')
@@ -98,7 +138,8 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply({
         content: `ANDROID:
 - DELTA VNG
-- CODEX VNG`,
+- CODEX VNG
+- ARCEUS`,
         ephemeral: true
       });
     }
@@ -116,7 +157,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== LOGIN DEBUG =====
+// ===== LOGIN =====
 client.login(process.env.TOKEN)
   .then(() => console.log("✅ LOGIN SUCCESS"))
   .catch(err => console.error("❌ LOGIN FAIL:", err.message));
