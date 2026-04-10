@@ -1,22 +1,13 @@
 const express = require('express');
-const axios = require('axios');
-const {
-  Client,
-  GatewayIntentBits
-} = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 
-// ===== ANTI CRASH =====
-process.on('unhandledRejection', err => {
-  console.error('Unhandled Rejection:', err);
-});
-process.on('uncaughtException', err => {
-  console.error('Uncaught Exception:', err);
-});
+// ===== DEBUG TOKEN =====
+console.log("TOKEN:", process.env.TOKEN ? "OK" : "THIẾU");
 
 // ===== WEB SERVER =====
 const app = express();
 app.get('/', (req, res) => res.send('Bot is alive!'));
-app.listen(3000, () => console.log('Web server chạy rồi'));
+app.listen(3000, () => console.log('Web OK'));
 
 // ===== DISCORD BOT =====
 const client = new Client({
@@ -27,53 +18,28 @@ const client = new Client({
   ]
 });
 
-// ===== ANTI SPAM =====
-const cooldown = new Map();
-
-function isCooldown(userId) {
-  const now = Date.now();
-  const last = cooldown.get(userId) || 0;
-
-  if (now - last < 2000) return true;
-  cooldown.set(userId, now);
-  return false;
-}
-
-// ===== DOWNLOAD VIDEO =====
-async function downloadVideo(url) {
-  try {
-    const res = await axios.get(
-      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
-      { timeout: 5000 }
-    );
-    return res.data.video || null;
-  } catch {
-    return null;
-  }
-}
-
-// ===== READY =====
 client.on('ready', () => {
   console.log(`Bot online: ${client.user.tag}`);
 });
 
-// ===== MESSAGE =====
-client.on('messageCreate', async (message) => {
-  try {
-    if (message.author.bot) return;
+client.on('messageCreate', message => {
+  if (message.author.bot) return;
 
-    const msg = message.content.toLowerCase().trim();
-    console.log("MSG:", msg);
+  const msg = message.content.toLowerCase();
 
-    // ===== LỆNH KHÔNG BỊ COOLDOWN =====
-    if (msg === 'ping') return message.reply('pong 🏓');
+  // ===== PING =====
+  if (msg === 'ping') {
+    return message.reply('pong 🏓');
+  }
 
-    if (msg.includes("alo vũ")) {
-      return message.reply("Không anh ơi");
-    }
+  // ===== MEME ALO VŨ =====
+  if (msg.includes('alo vũ')) {
+    return message.reply('Không anh ơi 😔');
+  }
 
-    if (msg.includes("chán học")) {
-      return message.reply(`Alo Vũ à Vũ...
+  // ===== CHÁN HỌC =====
+  if (msg.includes('chán học')) {
+    return message.reply(`Alo Vũ à Vũ...
 Không anh ơi 😔
 
 Chán học à?
@@ -81,40 +47,33 @@ Chán học à?
 Thà để giọt mồ hôi rơi trên trang sách còn hơn là giọt nước mắt rơi trên đề thi.
 
 "Học, học nữa, học mãi" - V.I. Lenin
+"Đừng lựa chọn an nhàn khi còn trẻ"
+"Học tập như thế đi thuyền ngược dòng nước"
 
-💪 Nỗ lực hôm nay = thành công ngày mai!
-📚 Đi học tiếp đi bro 😎`);
-    }
-
-    // ===== ANTI SPAM =====
-    if (isCooldown(message.author.id)) return;
-
-    // ===== AUTO DOWNLOAD VIDEO =====
-    if (
-      msg.includes("tiktok.com") ||
-      msg.includes("youtube.com") ||
-      msg.includes("youtu.be")
-    ) {
-      try {
-        const video = await downloadVideo(message.content);
-
-        if (!video) {
-          return message.reply("❌ Không tải được video!");
-        }
-
-        return message.reply(`🎬 Video:\n${video}`);
-      } catch (err) {
-        console.error(err);
-        return message.reply("❌ Lỗi tải video!");
-      }
-    }
-
-  } catch (err) {
-    console.error("Lỗi message:", err);
+🔥 Cố lên bro!`);
   }
+
+  // ===== DELTA VNG =====
+  if (msg.includes('delta vng')) {
+    return message.reply('Delta VNG https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file');
+  }
+
+  // ===== CODEX VNG =====
+  if (msg.includes('codex vng')) {
+    return message.reply('CODEX VNG V2.711 BY NAKNOHACK https://www.mediafire.com/file/i43otfr7w6ukcod/Codex.apk/file');
+  }
+
+  // ===== ARCEUS VNG =====
+  if (msg.includes('arceus neo vng')) {
+    return message.reply('ARCEUS NEO VNG https://www.mediafire.com/file/i5g2c4tasweprps/Arceus.apk/file');
+  }
+
+  // ===== DELTA IOS =====
+  if (msg.includes('delta vng ios')) {
+    return message.reply('https://www.mediafire.com/file/afmig367b9v2hr5/DeltaVN+V57+HuyMythic.ipa/file');
+  }
+
 });
 
 // ===== LOGIN =====
-client.login(process.env.TOKEN)
-  .then(() => console.log("Đã login Discord"))
-  .catch(err => console.error("Lỗi token:", err));
+client.login(process.env.TOKEN);
