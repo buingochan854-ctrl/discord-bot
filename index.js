@@ -10,28 +10,7 @@ const {
 // ===== DEBUG TOKEN =====
 console.log("CHECK TOKEN:", process.env.TOKEN ? "CÓ TOKEN" : "KHÔNG CÓ TOKEN");
 
-// ===== ANTI CRASH =====
-process.on('unhandledRejection', err => {
-  console.error('❌ Unhandled Rejection:', err);
-});
-process.on('uncaughtException', err => {
-  console.error('❌ Uncaught Exception:', err);
-});
-
-// ===== WEB SERVER (FIX PORT RENDER) =====
-const app = express();
-
-app.get('/', (req, res) => {
-  res.send('Bot is alive!');
-});
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`🌐 Web server chạy cổng ${PORT}`);
-});
-
-// ===== DISCORD BOT =====
+// ===== TẠO BOT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -45,20 +24,32 @@ client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
 
-// ===== DOWNLOAD VIDEO =====
-async function downloadVideo(url) {
+// ===== LOGIN (AN TOÀN) =====
+async function startBot() {
   try {
-    const res = await axios.get(
-      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
-      { timeout: 7000 }
-    );
+    if (!process.env.TOKEN) {
+      throw new Error("❌ Không tìm thấy TOKEN!");
+    }
 
-    return res.data?.video || null;
+    await client.login(process.env.TOKEN);
+    console.log("✅ LOGIN SUCCESS");
+
   } catch (err) {
-    console.log("API lỗi:", err.message);
-    return null;
+    console.error("❌ LOGIN FAIL:", err.message);
   }
 }
+
+// ===== WEB SERVER (RENDER) =====
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Web server chạy cổng ${PORT}`);
+});
 
 // ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
@@ -68,15 +59,17 @@ client.on('messageCreate', async (message) => {
     const msg = message.content.toLowerCase().trim();
     console.log("📩 MSG:", msg);
 
-    // ===== LỆNH =====
+    // ping
     if (msg === 'ping') {
       return message.reply('pong 🏓');
     }
 
+    // meme
     if (msg.includes("alo vũ")) {
       return message.reply("Không anh ơi 😎");
     }
 
+    // động lực
     if (msg.includes("chán học")) {
       return message.reply(`Alo Vũ à Vũ...
 Không anh ơi 😔
@@ -84,27 +77,37 @@ Không anh ơi 😔
 💪 Cố lên bro!`);
     }
 
+    // link
     if (msg.includes("delta vng")) {
       return message.reply(`Delta VNG:
 https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
     }
 
-    // ===== AUTO VIDEO =====
+    // video
     if (
       msg.includes("tiktok.com") ||
       msg.includes("youtube.com") ||
       msg.includes("youtu.be")
     ) {
-      const video = await downloadVideo(message.content);
+      try {
+        const res = await axios.get(
+          `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(message.content)}`
+        );
 
-      if (!video) {
-        return message.reply("❌ Không tải được video!");
+        const video = res.data?.video;
+
+        if (!video) {
+          return message.reply("❌ Không tải được video!");
+        }
+
+        return message.reply(`🎬 Video:\n${video}`);
+
+      } catch {
+        return message.reply("❌ API lỗi!");
       }
-
-      return message.reply(`🎬 Video:\n${video}`);
     }
 
-    // ===== MENU =====
+    // menu
     if (msg === 'all client') {
       const menu = new StringSelectMenuBuilder()
         .setCustomId('select_os')
@@ -138,8 +141,7 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply({
         content: `ANDROID:
 - DELTA VNG
-- CODEX VNG
-- ARCEUS`,
+- CODEX VNG`,
         ephemeral: true
       });
     }
@@ -157,7 +159,13 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== LOGIN =====
-client.login(process.env.TOKEN)
-  .then(() => console.log("✅ LOGIN SUCCESS"))
-  .catch(err => console.error("❌ LOGIN FAIL:", err.message));
+// ===== ANTI CRASH =====
+process.on('unhandledRejection', err => {
+  console.error('❌ Unhandled Rejection:', err);
+});
+process.on('uncaughtException', err => {
+  console.error('❌ Uncaught Exception:', err);
+});
+
+// ===== START BOT =====
+startBot();
