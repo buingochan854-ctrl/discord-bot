@@ -13,7 +13,7 @@ if (!process.env.TOKEN) {
   process.exit(1);
 }
 
-// ===== DISCORD BOT =====
+// ===== TẠO BOT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -112,11 +112,19 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server chạy cổng ${PORT}`);
 });
 
-// ===== LOGIN =====
-client.login(process.env.TOKEN)
-  .then(() => console.log("✅ LOGIN SUCCESS"))
-  .catch(err => console.error("❌ LOGIN FAIL:", err.message));
+// ===== LOGIN (FIX CỨNG) =====
+(async () => {
+  try {
+    console.log("👉 Đang login...");
+
+    await client.login(process.env.TOKEN);
+
+    console.log("✅ LOGIN SUCCESS");
+  } catch (err) {
+    console.error("❌ LOGIN FAIL:", err);
+  }
+})();
 
 // ===== ANTI CRASH =====
-process.on('unhandledRejection', err => console.error(err));
-process.on('uncaughtException', err => console.error(err)); 
+process.on('unhandledRejection', err => console.error("❌ Lỗi:", err));
+process.on('uncaughtException', err => console.error("❌ Lỗi:", err));
