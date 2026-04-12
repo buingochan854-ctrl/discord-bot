@@ -6,6 +6,10 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
+// ===== DEBUG TOKEN =====
+console.log("🔑 TOKEN:", process.env.TOKEN ? "CÓ TOKEN" : "KHÔNG CÓ TOKEN");
+console.log("🔑 LENGTH:", process.env.TOKEN ? process.env.TOKEN.length : 0);
+
 // ===== CHECK TOKEN =====
 if (!process.env.TOKEN) {
   console.error("❌ Thiếu TOKEN trong Render ENV!");
