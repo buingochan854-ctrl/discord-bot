@@ -8,7 +8,7 @@ const {
 
 // ===== CHECK TOKEN =====
 if (!process.env.TOKEN) {
-  console.error("❌ Thiếu TOKEN!");
+  console.error("❌ Thiếu TOKEN trong ENV!");
   process.exit(1);
 }
 
@@ -30,24 +30,30 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase();
+  const msg = message.content.toLowerCase().trim();
 
+  // test
   if (msg === 'ping') {
     return message.reply('pong 🏓');
   }
 
+  // meme
   if (msg.includes("alo vũ")) {
     return message.reply("Không anh ơi 😎");
   }
 
+  // động lực
   if (msg.includes("chán học")) {
     return message.reply("💪 Cố lên bro!");
   }
 
+  // link
   if (msg.includes("delta vng")) {
-    return message.reply(`https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
+    return message.reply(`Delta VNG:
+https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
   }
 
+  // menu
   if (msg === 'all client') {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('select_os')
@@ -90,16 +96,16 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== WEB SERVER =====
+// ===== WEB SERVER (RENDER KEEP ALIVE) =====
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.get('/', (req, res) => {
   res.send('Bot is alive!');
 });
 
 app.listen(PORT, () => {
-  console.log(`🌐 Web chạy cổng ${PORT}`);
+  console.log(`🌐 Web server chạy cổng ${PORT}`);
 });
 
 // ===== LOGIN =====
@@ -112,3 +118,7 @@ app.listen(PORT, () => {
     console.error("❌ LOGIN FAIL:", err);
   }
 })();
+
+// ===== ANTI CRASH =====
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
