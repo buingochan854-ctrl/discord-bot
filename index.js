@@ -1,5 +1,4 @@
 const express = require('express');
-const axios = require('axios');
 const {
   Client,
   GatewayIntentBits,
@@ -9,11 +8,11 @@ const {
 
 // ===== CHECK TOKEN =====
 if (!process.env.TOKEN) {
-  console.error("❌ Thiếu TOKEN trong Render ENV!");
+  console.error("❌ Thiếu TOKEN!");
   process.exit(1);
 }
 
-// ===== TẠO BOT =====
+// ===== BOT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -31,33 +30,24 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase().trim();
+  const msg = message.content.toLowerCase();
 
-  // test
   if (msg === 'ping') {
     return message.reply('pong 🏓');
   }
 
-  // meme
   if (msg.includes("alo vũ")) {
     return message.reply("Không anh ơi 😎");
   }
 
-  // động lực
   if (msg.includes("chán học")) {
-    return message.reply(`Alo Vũ à Vũ...
-Không anh ơi 😔
-
-💪 Cố lên bro!`);
+    return message.reply("💪 Cố lên bro!");
   }
 
-  // link
   if (msg.includes("delta vng")) {
-    return message.reply(`Delta VNG:
-https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
+    return message.reply(`https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
   }
 
-  // menu
   if (msg === 'all client') {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('select_os')
@@ -100,7 +90,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== WEB SERVER (RENDER) =====
+// ===== WEB SERVER =====
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -109,22 +99,16 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🌐 Web server chạy cổng ${PORT}`);
+  console.log(`🌐 Web chạy cổng ${PORT}`);
 });
 
-// ===== LOGIN (FIX CỨNG) =====
+// ===== LOGIN =====
 (async () => {
   try {
     console.log("👉 Đang login...");
-
     await client.login(process.env.TOKEN);
-
     console.log("✅ LOGIN SUCCESS");
   } catch (err) {
     console.error("❌ LOGIN FAIL:", err);
   }
 })();
-
-// ===== ANTI CRASH =====
-process.on('unhandledRejection', err => console.error("❌ Lỗi:", err));
-process.on('uncaughtException', err => console.error("❌ Lỗi:", err));
