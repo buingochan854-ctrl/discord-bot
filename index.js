@@ -6,15 +6,14 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
-// ===== DEBUG TOKEN =====
-console.log("🔑 TOKEN:", process.env.TOKEN ? "CÓ TOKEN" : "KHÔNG CÓ TOKEN");
-console.log("🔑 LENGTH:", process.env.TOKEN ? process.env.TOKEN.length : 0);
-
 // ===== CHECK TOKEN =====
 if (!process.env.TOKEN) {
   console.error("❌ Thiếu TOKEN trong Render ENV!");
   process.exit(1);
 }
+
+console.log("🔑 TOKEN: CÓ TOKEN");
+console.log("🔑 LENGTH:", process.env.TOKEN.length);
 
 // ===== DISCORD BOT =====
 const client = new Client({
@@ -34,7 +33,7 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase().trim();
+  const msg = message.content.toLowerCase();
 
   if (msg === 'ping') {
     return message.reply('pong 🏓');
@@ -106,19 +105,13 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server chạy cổng ${PORT}`);
 });
 
-// ===== LOGIN =====
-(async () => {
-  try {
-    console.log("👉 Đang login...");
+// ===== LOGIN (FIX TREO) =====
+console.log("👉 Đang login...");
 
-    await client.login(process.env.TOKEN);
-
-    console.log("✅ LOGIN SUCCESS");
-  } catch (err) {
-    console.error("❌ LOGIN FAIL:", err);
-  }
-})();
+client.login(process.env.TOKEN)
+  .then(() => console.log("✅ LOGIN SUCCESS"))
+  .catch(err => console.error("❌ LOGIN FAIL:", err));
 
 // ===== ANTI CRASH =====
-process.on('unhandledRejection', err => console.error(err));
-process.on('uncaughtException', err => console.error(err));
+process.on('unhandledRejection', console.error);
+process.on('uncaughtException', console.error);
