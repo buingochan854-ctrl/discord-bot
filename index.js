@@ -1,10 +1,14 @@
-require('dotenv').config();
 const express = require('express');
-const { Client, GatewayIntentBits, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  StringSelectMenuBuilder
+} = require('discord.js');
 
 // ===== CHECK TOKEN =====
 if (!process.env.TOKEN) {
-  console.log("❌ Không có TOKEN!");
+  console.error("❌ Thiếu TOKEN trong Render ENV!");
   process.exit(1);
 }
 
@@ -26,16 +30,25 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase();
+  const msg = message.content.toLowerCase().trim();
 
-  if (msg === 'ping') return message.reply('pong 🏓');
+  if (msg === 'ping') {
+    return message.reply('pong 🏓');
+  }
 
-  if (msg.includes("alo vũ")) return message.reply("Không anh ơi 😎");
+  if (msg.includes("alo vũ")) {
+    return message.reply("Không anh ơi 😎");
+  }
 
-  if (msg.includes("chán học")) return message.reply("💪 Cố lên bro!");
+  if (msg.includes("chán học")) {
+    return message.reply(`Alo Vũ à Vũ...
+Không anh ơi 😔
+
+💪 Cố lên bro!`);
+  }
 
   if (msg.includes("delta vng")) {
-    return message.reply("https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file");
+    return message.reply(`https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
   }
 
   if (msg === 'all client') {
@@ -63,26 +76,46 @@ client.on('interactionCreate', async (interaction) => {
   const choice = interaction.values[0];
 
   if (choice === 'android') {
-    await interaction.reply({ content: "ANDROID:\n- DELTA VNG\n- CODEX VNG", ephemeral: true });
+    await interaction.reply({
+      content: `ANDROID:
+- DELTA VNG
+- CODEX VNG`,
+      ephemeral: true
+    });
   }
 
   if (choice === 'ios') {
-    await interaction.reply({ content: "IOS:\n- DELTA VNG", ephemeral: true });
+    await interaction.reply({
+      content: `IOS:
+- DELTA VNG`,
+      ephemeral: true
+    });
   }
 });
 
-// ===== WEB =====
+// ===== WEB SERVER (RENDER) =====
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-app.get('/', (req, res) => res.send('Bot is alive!'));
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
 
 app.listen(PORT, () => {
   console.log(`🌐 Web server chạy cổng ${PORT}`);
 });
 
 // ===== LOGIN =====
-console.log("👉 Đang login...");
-client.login(process.env.TOKEN)
-  .then(() => console.log("✅ LOGIN SUCCESS"))
-  .catch(err => console.error("❌ LOGIN FAIL:", err.message));
+(async () => {
+  try {
+    console.log("👉 Đang login...");
+    await client.login(process.env.TOKEN);
+    console.log("✅ LOGIN SUCCESS");
+  } catch (err) {
+    console.error("❌ LOGIN FAIL:", err.message);
+  }
+})();
+
+// ===== ANTI CRASH =====
+process.on('unhandledRejection', err => console.error("UNHANDLED:", err));
+process.on('uncaughtException', err => console.error("CRASH:", err));
