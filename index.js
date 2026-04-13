@@ -6,12 +6,6 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 
-// ===== CHECK TOKEN =====
-if (!process.env.TOKEN) {
-  console.error("❌ Thiếu TOKEN trong Render ENV!");
-  process.exit(1);
-}
-
 // ===== BOT =====
 const client = new Client({
   intents: [
@@ -32,25 +26,27 @@ client.on('messageCreate', async (message) => {
 
   const msg = message.content.toLowerCase().trim();
 
+  // test
   if (msg === 'ping') {
     return message.reply('pong 🏓');
   }
 
+  // meme
   if (msg.includes("alo vũ")) {
     return message.reply("Không anh ơi 😎");
   }
 
+  // động lực
   if (msg.includes("chán học")) {
-    return message.reply(`Alo Vũ à Vũ...
-Không anh ơi 😔
-
-💪 Cố lên bro!`);
+    return message.reply(`💪 Cố lên bro!`);
   }
 
+  // link
   if (msg.includes("delta vng")) {
     return message.reply(`https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
   }
 
+  // menu
   if (msg === 'all client') {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('select_os')
@@ -95,7 +91,7 @@ client.on('interactionCreate', async (interaction) => {
 
 // ===== WEB SERVER (RENDER) =====
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
   res.send('Bot is alive!');
@@ -105,17 +101,18 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server chạy cổng ${PORT}`);
 });
 
-// ===== LOGIN =====
-(async () => {
-  try {
-    console.log("👉 Đang login...");
-    await client.login(process.env.TOKEN);
+// ===== LOGIN (FIX TREO) =====
+console.log("👉 Đang login...");
+console.log("🔑 TOKEN LENGTH:", process.env.TOKEN?.length);
+
+client.login(process.env.TOKEN)
+  .then(() => {
     console.log("✅ LOGIN SUCCESS");
-  } catch (err) {
-    console.error("❌ LOGIN FAIL:", err.message);
-  }
-})();
+  })
+  .catch((err) => {
+    console.error("❌ LOGIN FAIL:", err);
+  });
 
 // ===== ANTI CRASH =====
-process.on('unhandledRejection', err => console.error("UNHANDLED:", err));
-process.on('uncaughtException', err => console.error("CRASH:", err));
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
