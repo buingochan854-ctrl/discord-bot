@@ -1,12 +1,9 @@
-const express = require('express');
-const {
-  Client,
-  GatewayIntentBits,
-  ActionRowBuilder,
-  StringSelectMenuBuilder
-} = require('discord.js');
+const { Client, GatewayIntentBits } = require("discord.js");
+const express = require("express");
+const axios = require("axios");
+const ytdl = require("ytdl-core");
 
-// ===== BOT =====
+// ===== DISCORD BOT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -15,104 +12,78 @@ const client = new Client({
   ]
 });
 
-// ===== READY =====
-client.once('ready', () => {
-  console.log(`🤖 Bot online: ${client.user.tag}`);
+// ===== BOT READY =====
+client.once("ready", () => {
+  console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-// ===== MESSAGE =====
-client.on('messageCreate', async (message) => {
+// ===== MESSAGE EVENT =====
+client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  const msg = message.content.toLowerCase().trim();
-
-  // test
-  if (msg === 'ping') {
-    return message.reply('pong 🏓');
+  // ===== TEST =====
+  if (message.content === "!ping") {
+    message.reply("🏓 Pong!");
   }
 
-  // meme
-  if (msg.includes("alo vũ")) {
-    return message.reply("Không anh ơi 😎");
+  // ===== TIKTOK DOWNLOAD =====
+  if (message.content.startsWith("!tt ")) {
+    const url = message.content.split(" ")[1];
+
+    try {
+      const api = `https://www.tikwm.com/api/?url=${url}`;
+      const res = await axios.get(api);
+
+      const video = res.data.data.play;
+
+      message.reply({
+        content: "📥 Video TikTok:",
+        files: [video]
+      });
+
+    } catch (err) {
+      console.error(err);
+      message.reply("❌ Không tải được video TikTok!");
+    }
   }
 
-  // động lực
-  if (msg.includes("chán học")) {
-    return message.reply(`💪 Cố lên bro!`);
-  }
+  // ===== YOUTUBE DOWNLOAD =====
+  if (message.content.startsWith("!yt ")) {
+    const url = message.content.split(" ")[1];
 
-  // link
-  if (msg.includes("delta vng")) {
-    return message.reply(`https://www.mediafire.com/file/ipjryzyulpcul1v/Delta_Vng-2.714.1096_Up.apk/file`);
-  }
+    if (!ytdl.validateURL(url)) {
+      return message.reply("❌ Link YouTube không hợp lệ!");
+    }
 
-  // menu
-  if (msg === 'all client') {
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('select_os')
-      .setPlaceholder('👉 Chọn hệ điều hành')
-      .addOptions([
-        { label: 'Android', value: 'android' },
-        { label: 'iOS', value: 'ios' }
-      ]);
+    try {
+      const stream = ytdl(url, { filter: "audioonly" });
 
-    const row = new ActionRowBuilder().addComponents(menu);
+      message.reply({
+        content: "🎵 Audio YouTube:",
+        files: [{
+          attachment: stream,
+          name: "audio.mp3"
+        }]
+      });
 
-    return message.reply({
-      content: '📦 Chọn hệ điều hành:',
-      components: [row]
-    });
-  }
-});
-
-// ===== INTERACTION =====
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isStringSelectMenu()) return;
-
-  const choice = interaction.values[0];
-
-  if (choice === 'android') {
-    await interaction.reply({
-      content: `ANDROID:
-- DELTA VNG
-- CODEX VNG`,
-      ephemeral: true
-    });
-  }
-
-  if (choice === 'ios') {
-    await interaction.reply({
-      content: `IOS:
-- DELTA VNG`,
-      ephemeral: true
-    });
+    } catch (err) {
+      console.error(err);
+      message.reply("❌ Lỗi tải YouTube!");
+    }
   }
 });
 
-// ===== WEB SERVER (RENDER) =====
+// ===== WEB SERVER (GIỮ BOT ONLINE) =====
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => res.send("Bot đang chạy!"));
 
-app.get('/', (req, res) => {
-  res.send('Bot is alive!');
+app.listen(10000, () => {
+  console.log("🌐 Web server chạy cổng 10000");
 });
 
-app.listen(PORT, () => {
-  console.log(`🌐 Web server chạy cổng ${PORT}`);
-});
-
-// ===== LOGIN (FIX TREO) =====
+// ===== LOGIN (QUAN TRỌNG NHẤT) =====
 console.log("👉 Đang login...");
-console.log("🔑 TOKEN LENGTH:", process.env.TOKEN?.length);
 
 client.login(process.env.TOKEN)
-  .then(() => {
-    console.log("✅ LOGIN SUCCESS");
-  })
-  .catch((err) => {
-    console.error("❌ LOGIN FAIL:", err);
-  });
-
-// ===== ANTI CRASH =====
-process.on('unhandledRejection', err => console.error(err));
-process.on('uncaughtException', err => console.error(err));
+  .then(() => console.log("✅ Login thành công!"))
+  .catch(err => console.error("❌ Lỗi login:", err));
