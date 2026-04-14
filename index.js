@@ -1,89 +1,78 @@
-const { Client, GatewayIntentBits } = require("discord.js");
-const express = require("express");
-const axios = require("axios");
-const ytdl = require("ytdl-core");
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { exec } = require("child_process");
+const fs = require("fs");
 
-// ===== DISCORD BOT =====
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
-});
-
-// ===== BOT READY =====
-client.once("ready", () => {
-  console.log(`✅ Bot online: ${client.user.tag}`);
-});
-
-// ===== MESSAGE EVENT =====
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-
-  // ===== TEST =====
-  if (message.content === "!ping") {
-    message.reply("🏓 Pong!");
-  }
-
-  // ===== TIKTOK DOWNLOAD =====
-  if (message.content.startsWith("!tt ")) {
-    const url = message.content.split(" ")[1];
-
-    try {
-      const api = `https://www.tikwm.com/api/?url=${url}`;
-      const res = await axios.get(api);
-
-      const video = res.data.data.play;
-
-      message.reply({
-        content: "📥 Video TikTok:",
-        files: [video]
-      });
-
-    } catch (err) {
-      console.error(err);
-      message.reply("❌ Không tải được video TikTok!");
-    }
-  }
-
-  // ===== YOUTUBE DOWNLOAD =====
-  if (message.content.startsWith("!yt ")) {
-    const url = message.content.split(" ")[1];
-
-    if (!ytdl.validateURL(url)) {
-      return message.reply("❌ Link YouTube không hợp lệ!");
-    }
-
-    try {
-      const stream = ytdl(url, { filter: "audioonly" });
-
-      message.reply({
-        content: "🎵 Audio YouTube:",
-        files: [{
-          attachment: stream,
-          name: "audio.mp3"
-        }]
-      });
-
-    } catch (err) {
-      console.error(err);
-      message.reply("❌ Lỗi tải YouTube!");
-    }
-  }
-});
-
-// ===== WEB SERVER (GIỮ BOT ONLINE) =====
-const app = express();
-app.get("/", (req, res) => res.send("Bot đang chạy!"));
-
-app.listen(10000, () => {
-  console.log("🌐 Web server chạy cổng 10000");
-});
-
-// ===== LOGIN (QUAN TRỌNG NHẤT) =====
 console.log("👉 Đang login...");
+console.log("🔑 TOKEN LENGTH:", process.env.TOKEN?.length);
 
-client.login(process.env.TOKEN)
-  .then(() => console.log("✅ Login thành công!"))
-  .catch(err => console.error("❌ Lỗi login:", err));
+// ====== TẠO BOT ======
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
+// ====== TẠO LỆNH /taivideo ======
+const commands = [
+  new SlashCommandBuilder()
+    .setName('taivideo')
+    .setDescription('Tải Video Youtube Hoặc Tiktok')
+    .addStringOption(option =>
+      option.setName('link')
+        .setDescription('Nhập link Youtube hoặc Tiktok')
+        .setRequired(true))
+];
+
+// ====== ĐĂNG KÝ LỆNH ======
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+client.once('ready', async () => {
+  console.log(`✅ Bot online: ${client.user.tag}`);
+
+  try {
+    await rest.put(
+      Routes.applicationCommands(client.user.id),
+      { body: commands }
+    );
+    console.log("✅ Đã đăng ký lệnh /taivideo");
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// ====== XỬ LÝ LỆNH ======
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === 'taivideo') {
+    const url = interaction.options.getString('link');
+
+    // Bước 1: báo đang tải
+    await interaction.reply("⏳ Đang tải video...");
+
+    const file = `video_${Date.now()}.mp4`;
+
+    // Bước 2: tải video
+    exec(`yt-dlp -o "${file}" "${url}"`, async (err) => {
+      if (err) {
+        return interaction.editReply("❌ Không tải được video!");
+      }
+
+      try {
+        // Bước 3: gửi video
+        await interaction.editReply({
+          content: "🎬 Video của bạn:",
+          files: [file]
+        });
+      } catch (e) {
+        await interaction.editReply("❌ Video quá nặng hoặc lỗi!");
+      }
+
+      // Xóa file sau khi gửi
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    });
+  }
+});
+
+// ====== LOGIN ======
+client.login(process.env.TOKEN).catch(err => {
+  console.error("❌ Lỗi login:", err);
+});
