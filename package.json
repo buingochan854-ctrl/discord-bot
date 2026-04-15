@@ -1,9 +1,7 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
-  "description": "Discord bot đa chức năng (meme, động viên, tải video)",
   "main": "index.js",
-  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
