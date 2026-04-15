@@ -1,78 +1,79 @@
+require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const { exec } = require("child_process");
-const fs = require("fs");
+const axios = require('axios');
 
-console.log("👉 Đang login...");
-console.log("🔑 TOKEN LENGTH:", process.env.TOKEN?.length);
-
-// ====== TẠO BOT ======
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// ====== TẠO LỆNH /taivideo ======
-const commands = [
-  new SlashCommandBuilder()
-    .setName('taivideo')
-    .setDescription('Tải Video Youtube Hoặc Tiktok')
-    .addStringOption(option =>
-      option.setName('link')
-        .setDescription('Nhập link Youtube hoặc Tiktok')
-        .setRequired(true))
-];
-
-// ====== ĐĂNG KÝ LỆNH ======
-const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-
 client.once('ready', async () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
 
+  const commands = [
+    new SlashCommandBuilder()
+      .setName('meme')
+      .setDescription('Random meme vui'),
+
+    new SlashCommandBuilder()
+      .setName('taivideo')
+      .setDescription('Tải video TikTok / YouTube')
+      .addStringOption(option =>
+        option.setName('link')
+          .setDescription('Nhập link video')
+          .setRequired(true)
+      )
+  ].map(cmd => cmd.toJSON());
+
+  const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
   try {
     await rest.put(
-      Routes.applicationCommands(client.user.id),
+      Routes.applicationCommands(process.env.CLIENT_ID),
       { body: commands }
     );
-    console.log("✅ Đã đăng ký lệnh /taivideo");
+    console.log("✅ Slash commands OK");
   } catch (err) {
     console.error(err);
   }
 });
 
-// ====== XỬ LÝ LỆNH ======
+// Slash command
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === 'taivideo') {
-    const url = interaction.options.getString('link');
+  // 😂 Meme
+  if (interaction.commandName === 'meme') {
+    try {
+      const res = await axios.get("https://meme-api.com/gimme");
+      return interaction.reply(res.data.url);
+    } catch {
+      return interaction.reply("❌ Lỗi meme!");
+    }
+  }
 
-    // Bước 1: báo đang tải
+  // 🎬 Tải video
+  if (interaction.commandName === 'taivideo') {
+    const link = interaction.options.getString('link');
+
     await interaction.reply("⏳ Đang tải video...");
 
-    const file = `video_${Date.now()}.mp4`;
+    try {
+      const api = `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(link)}`;
+      const res = await axios.get(api);
 
-    // Bước 2: tải video
-    exec(`yt-dlp -o "${file}" "${url}"`, async (err) => {
-      if (err) {
+      if (!res.data.video) {
         return interaction.editReply("❌ Không tải được video!");
       }
 
-      try {
-        // Bước 3: gửi video
-        await interaction.editReply({
-          content: "🎬 Video của bạn:",
-          files: [file]
-        });
-      } catch (e) {
-        await interaction.editReply("❌ Video quá nặng hoặc lỗi!");
-      }
+      return interaction.editReply(res.data.video);
 
-      // Xóa file sau khi gửi
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    });
+    } catch (err) {
+      console.error(err);
+      return interaction.editReply("❌ Lỗi tải video!");
+    }
   }
 });
 
-// ====== LOGIN ======
-client.login(process.env.TOKEN).catch(err => {
-  console.error("❌ Lỗi login:", err);
-});
+client.login(process.env.TOKEN)
+  .then(() => console.log("👉 Đang login..."))
+  .catch(err => console.error("❌ Login lỗi:", err));
