@@ -1,53 +1,104 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
+const {
+    Client,
+    GatewayIntentBits,
+    SlashCommandBuilder,
+    REST,
+    Routes
+} = require('discord.js');
+const axios = require('axios');
 
-// ====== CHECK TOKEN ======
-console.log(">>>TOKEN START<<<");
-console.log(process.env.TOKEN);
-console.log(">>>TOKEN END<<<");
-console.log("LENGTH:", process.env.TOKEN?.length);
+// ====== ENV ======
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
 
-// ====== TẠO CLIENT ======
+// ====== CLIENT ======
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+    intents: [GatewayIntentBits.Guilds]
 });
 
-// ====== BOT ONLINE ======
-client.once('ready', () => {
-    console.log(`✅ Bot đã online: ${client.user.tag}`);
+// ====== REGISTER SLASH COMMAND ======
+const commands = [
+    new SlashCommandBuilder()
+        .setName('taivideo')
+        .setDescription('Tải video TikTok / YouTube')
+        .addStringOption(option =>
+            option.setName('link')
+                .setDescription('Nhập Link Video Youtube / Tiktok')
+                .setRequired(true)
+        )
+].map(cmd => cmd.toJSON());
+
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+(async () => {
+    try {
+        console.log('🔄 Đang đăng ký slash command...');
+        await rest.put(
+            Routes.applicationCommands(CLIENT_ID),
+            { body: commands }
+        );
+        console.log('✅ Đã đăng ký slash command!');
+    } catch (err) {
+        console.error(err);
+    }
+})();
+
+// ====== READY ======
+client.once('clientReady', () => {
+    console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-// ====== EVENT MESSAGE ======
-client.on('messageCreate', (message) => {
-    if (message.author.bot) return;
+// ====== INTERACTION ======
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
 
-    if (message.content === '!ping') {
-        message.reply('🏓 Pong!');
-    }
+    if (interaction.commandName === 'taivideo') {
+        const url = interaction.options.getString('link');
 
-    if (message.content === '!hello') {
-        message.reply('👋 Xin chào!');
-    }
+        await interaction.reply('⏳ Đang xử lý video...');
 
-    if (message.content === '!meme') {
-        const memes = [
-            'https://i.imgur.com/1.jpg',
-            'https://i.imgur.com/2.jpg',
-            'https://i.imgur.com/3.jpg'
-        ];
-        const random = memes[Math.floor(Math.random() * memes.length)];
-        message.reply(random);
+        try {
+            let videoUrl = null;
+
+            // ===== TikTok =====
+            if (url.includes('tiktok.com')) {
+                const res = await axios.get(`https://tikwm.com/api/?url=${encodeURIComponent(url)}`);
+                videoUrl = res.data?.data?.play;
+            }
+
+            // ===== YouTube (demo API free) =====
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                const res = await axios.get(`https://api.vevioz.com/api/button/mp4/720/${url}`);
+                // API này trả HTML → lấy link video
+                const match = res.data.match(/href="(https:[^"]+)"/);
+                if (match) videoUrl = match[1];
+            }
+
+            if (!videoUrl) {
+                return interaction.editReply('❌ Không tải được video!');
+            }
+
+            // ===== CHECK SIZE =====
+            const head = await axios.head(videoUrl);
+            const size = parseInt(head.headers['content-length'] || 0);
+
+            if (size > 25 * 1024 * 1024) {
+                return interaction.editReply('❌ Video quá nặng!');
+            }
+
+            // ===== SEND VIDEO =====
+            await interaction.editReply({
+                content: '🎬 Video đây:',
+                files: [videoUrl]
+            });
+
+        } catch (err) {
+            console.error(err);
+            interaction.editReply('❌ Lỗi khi xử lý video!');
+        }
     }
 });
 
 // ====== LOGIN ======
-client.login(process.env.TOKEN).catch(err => {
-    console.error("❌ LOGIN LỖI:", err);
-});
-
-console.log(process.env);
-console.log("ENV:", process.env.TOKEN ? "OK" : "NO TOKEN");
+client.login(TOKEN);
