@@ -25,17 +25,14 @@ client.once('ready', () => {
 client.on('messageCreate', (message) => {
     if (message.author.bot) return;
 
-    // !ping
     if (message.content === '!ping') {
         message.reply('🏓 Pong!');
     }
 
-    // !hello
     if (message.content === '!hello') {
         message.reply('👋 Xin chào!');
     }
 
-    // !meme (random ảnh)
     if (message.content === '!meme') {
         const memes = [
             'https://i.imgur.com/1.jpg',
@@ -51,3 +48,6 @@ client.on('messageCreate', (message) => {
 client.login(process.env.TOKEN).catch(err => {
     console.error("❌ LOGIN LỖI:", err);
 });
+
+console.log(process.env);
+console.log("ENV:", process.env.TOKEN ? "OK" : "NO TOKEN");
