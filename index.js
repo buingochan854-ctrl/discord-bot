@@ -8,49 +8,42 @@ const {
 } = require('discord.js');
 const axios = require('axios');
 
-// ===== ENV =====
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-// ===== CLIENT =====
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-// ===== SLASH COMMAND =====
+// ===== COMMAND =====
 const commands = [
     new SlashCommandBuilder()
         .setName('taivideo')
-        .setDescription('Tải video TikTok / YouTube')
+        .setDescription('Tải video TikTok')
         .addStringOption(option =>
             option.setName('link')
-                .setDescription('Nhập Link Video Youtube / Tiktok')
+                .setDescription('Nhập link TikTok')
                 .setRequired(true)
         )
 ].map(cmd => cmd.toJSON());
 
-// ===== REGISTER =====
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
+// ===== REGISTER =====
 (async () => {
-    try {
-        console.log('🔄 Đang đăng ký lệnh...');
-        await rest.put(
-            Routes.applicationCommands(CLIENT_ID),
-            { body: commands }
-        );
-        console.log('✅ Đăng ký thành công');
-    } catch (err) {
-        console.error(err);
-    }
+    await rest.put(
+        Routes.applicationCommands(CLIENT_ID),
+        { body: commands }
+    );
+    console.log("✅ Slash command OK");
 })();
 
 // ===== READY =====
 client.once('clientReady', () => {
-    console.log(`🤖 Bot Online: ${client.user.tag}`);
+    console.log(`🤖 Online: ${client.user.tag}`);
 });
 
-// ===== HANDLE COMMAND =====
+// ===== HANDLE =====
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -60,80 +53,40 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply('⏳ Đang xử lý video...');
 
         try {
-            let videoUrl = null;
+            // ===== LẤY VIDEO =====
+            const api = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            const videoUrl = api.data?.data?.play;
 
-            // =========================
-            // 🔥 TIKTOK API 1
-            // =========================
-            try {
-                const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-                videoUrl = res.data?.data?.play;
-                console.log("API1:", videoUrl);
-            } catch (e) {
-                console.log("API1 lỗi");
-            }
-
-            // =========================
-            // 🔥 TIKTOK API 2 (fallback)
-            // =========================
-            if (!videoUrl && url.includes('tiktok.com')) {
-                try {
-                    const res = await axios.get(`https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`);
-                    videoUrl = res.data?.video?.noWatermark;
-                    console.log("API2:", videoUrl);
-                } catch (e) {
-                    console.log("API2 lỗi");
-                }
-            }
-
-            // =========================
-            // 🔥 YOUTUBE (fallback đơn giản)
-            // =========================
-            if (!videoUrl && (url.includes('youtube.com') || url.includes('youtu.be'))) {
-                return interaction.editReply("⚠️ YouTube hiện chưa hỗ trợ ổn định!");
-            }
-
-            // =========================
-            // ❌ FAIL
-            // =========================
             if (!videoUrl) {
-                return interaction.editReply('❌ Không tải được video!');
+                return interaction.editReply('❌ Không lấy được video!');
             }
 
-            // =========================
-            // 🔍 CHECK SIZE
-            // =========================
-            let size = 0;
-            try {
-                const head = await axios.head(videoUrl);
-                size = parseInt(head.headers['content-length'] || 0);
-            } catch {
-                console.log("Không check được size");
+            // ===== TẢI VIDEO =====
+            const videoRes = await axios.get(videoUrl, {
+                responseType: 'arraybuffer'
+            });
+
+            const sizeMB = videoRes.data.length / 1024 / 1024;
+
+            // ===== QUÁ NẶNG =====
+            if (sizeMB > 25) {
+                return interaction.editReply(`❌ Video quá nặng (${sizeMB.toFixed(2)}MB)\n👉 ${videoUrl}`);
             }
 
-            // =========================
-            // ❌ QUÁ NẶNG
-            // =========================
-            if (size > 25 * 1024 * 1024) {
-                return interaction.editReply(`❌ Video quá nặng!\n👉 Link tải: ${videoUrl}`);
-            }
-
-            // =========================
-            // ✅ GỬI VIDEO
-            // =========================
+            // ===== GỬI FILE =====
             await interaction.editReply({
                 content: '🎬 Video đây:',
-                files: [videoUrl]
+                files: [{
+                    attachment: Buffer.from(videoRes.data),
+                    name: 'video.mp4'
+                }]
             });
 
         } catch (err) {
-            console.error("LỖI CHI TIẾT:", err.response?.data || err.message);
+            console.error("LỖI:", err.message);
             interaction.editReply('❌ Lỗi khi xử lý video!');
         }
     }
 });
 
-// ===== LOGIN =====
-client.login(TOKEN).catch(err => {
-    console.error("❌ Login lỗi:", err);
-});
+client.login(TOKEN);
