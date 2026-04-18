@@ -8,74 +8,209 @@ const {
 } = require('discord.js');
 const axios = require('axios');
 
+// ===== CONFIG =====
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const REPO = process.env.GITHUB_REPO;
+const FILE_PATH = "keys.json";
 
+const OWNER_ID = "1455796719378895022";
+
+// ===== CLIENT =====
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
 });
 
-// ===== COMMAND =====
+// =========================
+// 📥 LOAD KEYS
+// =========================
+async function loadKeys() {
+    const res = await axios.get(
+        `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`,
+        {
+            headers: {
+                Authorization: `token ${GITHUB_TOKEN}`
+            }
+        }
+    );
+
+    const content = Buffer.from(res.data.content, 'base64').toString();
+
+    return {
+        data: JSON.parse(content),
+        sha: res.data.sha
+    };
+}
+
+// =========================
+// 💾 SAVE KEYS
+// =========================
+async function saveKeys(data, sha) {
+    const content = Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
+
+    await axios.put(
+        `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`,
+        {
+            message: "update keys",
+            content,
+            sha
+        },
+        {
+            headers: {
+                Authorization: `token ${GITHUB_TOKEN}`
+            }
+        }
+    );
+}
+
+// =========================
+// 📌 COMMANDS
+// =========================
 const commands = [
+
+    new SlashCommandBuilder()
+        .setName('addkey')
+        .setDescription('Thêm key')
+        .addStringOption(o =>
+            o.setName('name').setDescription('Tên key').setRequired(true))
+        .addStringOption(o =>
+            o.setName('value').setDescription('Value').setRequired(true))
+        .addIntegerOption(o =>
+            o.setName('time').setDescription('Thời hạn (phút)')),
+
+    new SlashCommandBuilder()
+        .setName('delkey')
+        .setDescription('Xoá key')
+        .addStringOption(o =>
+            o.setName('name').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('listkey')
+        .setDescription('Xem danh sách key'),
+
     new SlashCommandBuilder()
         .setName('taivideo')
         .setDescription('Tải video TikTok')
-        .addStringOption(option =>
-            option.setName('link')
-                .setDescription('Nhập link TikTok')
-                .setRequired(true)
-        )
-].map(cmd => cmd.toJSON());
+        .addStringOption(o =>
+            o.setName('link').setRequired(true))
 
+].map(c => c.toJSON());
+
+// =========================
+// 📌 REGISTER COMMAND
+// =========================
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
-// ===== REGISTER =====
 (async () => {
-    await rest.put(
-        Routes.applicationCommands(CLIENT_ID),
-        { body: commands }
-    );
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
     console.log("✅ Slash command OK");
 })();
 
-// ===== READY =====
+// =========================
+// 🤖 READY
+// =========================
 client.once('clientReady', () => {
-    console.log(`🤖 Online: ${client.user.tag}`);
+    console.log(`🤖 Bot Online: ${client.user.tag}`);
 });
 
-// ===== HANDLE =====
+// =========================
+// ⚙️ HANDLE COMMAND
+// =========================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
+    // ===== ADD KEY =====
+    if (interaction.commandName === 'addkey') {
+
+        if (interaction.user.id !== OWNER_ID) {
+            return interaction.reply({ content: '❌ Không có quyền!', ephemeral: true });
+        }
+
+        const name = interaction.options.getString('name').toLowerCase();
+        const value = interaction.options.getString('value');
+        const time = interaction.options.getInteger('time');
+
+        let expire = null;
+        if (time) expire = Date.now() + time * 60000;
+
+        const { data, sha } = await loadKeys();
+
+        data[name] = { value, expire };
+
+        await saveKeys(data, sha);
+
+        return interaction.reply('✅ Add Key Successful');
+    }
+
+    // ===== DELETE KEY =====
+    if (interaction.commandName === 'delkey') {
+
+        if (interaction.user.id !== OWNER_ID) {
+            return interaction.reply({ content: '❌ Không có quyền!', ephemeral: true });
+        }
+
+        const name = interaction.options.getString('name').toLowerCase();
+
+        const { data, sha } = await loadKeys();
+
+        if (!data[name]) {
+            return interaction.reply('❌ Key không tồn tại');
+        }
+
+        delete data[name];
+
+        await saveKeys(data, sha);
+
+        return interaction.reply('🗑️ Đã xoá key');
+    }
+
+    // ===== LIST KEY =====
+    if (interaction.commandName === 'listkey') {
+
+        if (interaction.user.id !== OWNER_ID) {
+            return interaction.reply({ content: '❌ Không có quyền!', ephemeral: true });
+        }
+
+        const { data } = await loadKeys();
+
+        const keys = Object.keys(data);
+
+        if (keys.length === 0) {
+            return interaction.reply('❌ Không có key nào');
+        }
+
+        return interaction.reply(keys.join(', '));
+    }
+
+    // ===== TẢI VIDEO =====
     if (interaction.commandName === 'taivideo') {
+
         const url = interaction.options.getString('link');
 
         await interaction.reply('⏳ Đang xử lý video...');
 
         try {
-            // ===== LẤY VIDEO =====
             const api = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
             const videoUrl = api.data?.data?.play;
 
-            if (!videoUrl) {
-                return interaction.editReply('❌ Không lấy được video!');
-            }
+            if (!videoUrl) return interaction.editReply('❌ Không lấy được video');
 
-            // ===== TẢI VIDEO =====
             const videoRes = await axios.get(videoUrl, {
                 responseType: 'arraybuffer'
             });
 
             const sizeMB = videoRes.data.length / 1024 / 1024;
 
-            // ===== QUÁ NẶNG =====
             if (sizeMB > 25) {
                 return interaction.editReply(`❌ Video quá nặng (${sizeMB.toFixed(2)}MB)\n👉 ${videoUrl}`);
             }
 
-            // ===== GỬI FILE =====
             await interaction.editReply({
-                content: '🎬 Video đây:',
                 files: [{
                     attachment: Buffer.from(videoRes.data),
                     name: 'video.mp4'
@@ -83,10 +218,31 @@ client.on('interactionCreate', async (interaction) => {
             });
 
         } catch (err) {
-            console.error("LỖI:", err.message);
-            interaction.editReply('❌ Lỗi khi xử lý video!');
+            console.error(err);
+            interaction.editReply('❌ Lỗi khi xử lý video');
         }
     }
 });
 
+// =========================
+// 💬 MESSAGE CHECK KEY
+// =========================
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+
+    const msg = message.content.toLowerCase();
+
+    const { data } = await loadKeys();
+
+    const key = data[msg];
+    if (!key) return;
+
+    if (key.expire && Date.now() > key.expire) return;
+
+    message.reply(`🔑 ${key.value}`);
+});
+
+// =========================
+// 🔑 LOGIN
+// =========================
 client.login(TOKEN);
