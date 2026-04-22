@@ -1,6 +1,14 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    EmbedBuilder,
+    SlashCommandBuilder,
+    REST,
+    Routes
+} = require('discord.js');
+
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -8,51 +16,33 @@ const {
     AudioPlayerStatus
 } = require('@discordjs/voice');
 
-const express = require('express');
 const axios = require('axios');
 const play = require('play-dl');
 
-// ===== CONFIG =====
-const app = express();
-const PORT = process.env.PORT || 3000;
-
+// ===== CLIENT =====
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates
     ]
 });
 
 const queue = new Map();
 
-// ===== DASHBOARD WEB =====
-app.get('/', (req, res) => {
-    res.send(`
-    <h1>🤖 Bot V7 Online</h1>
-    <p>Status: OK</p>
-    <p>Servers: ${client.guilds.cache.size}</p>
-    `);
-});
-
-app.get('/status', (req, res) => {
-    res.json({
-        online: true,
-        guilds: client.guilds.cache.size,
-        uptime: process.uptime()
-    });
-});
-
-app.listen(PORT, () => console.log("🌐 Dashboard running"));
-
-// ================= KEY SYSTEM =================
+// ===== KEY SYSTEM =====
 let cache = {};
 
 async function loadKeys() {
     try {
         const res = await axios.get(
             `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
-            { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
+            {
+                headers: {
+                    Authorization: `token ${process.env.GITHUB_TOKEN}`
+                }
+            }
         );
 
         const content = Buffer.from(res.data.content, 'base64').toString();
@@ -63,14 +53,14 @@ async function loadKeys() {
             cache = {};
         }
 
-        return { data: cache, sha: res.data.sha };
-
     } catch {
-        return { data: cache, sha: null };
+        cache = {};
     }
+
+    return cache;
 }
 
-// ================= MUSIC =================
+// ===== MUSIC =====
 async function playMusic(guild, song) {
     const q = queue.get(guild.id);
 
@@ -100,12 +90,48 @@ async function playMusic(guild, song) {
     }
 }
 
-// ================= READY =================
-client.once('clientReady', () => {
-    console.log("🤖 V7 Online");
+// ===== READY =====
+client.once('clientReady', async () => {
+    console.log("🤖 Bot Online");
+
+    // ===== REGISTER SLASH =====
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('status')
+            .setDescription('Kiểm tra trạng thái bot')
+    ].map(cmd => cmd.toJSON());
+
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+    await rest.put(
+        Routes.applicationCommands(process.env.CLIENT_ID),
+        { body: commands }
+    );
+
+    console.log("✅ Slash OK");
 });
 
-// ================= COMMAND =================
+// ===== SLASH COMMAND =====
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'status') {
+        return interaction.reply({
+            embeds: [
+                new EmbedBuilder()
+                    .setTitle("📊 Bot Status")
+                    .addFields(
+                        { name: "🟢 Trạng thái", value: "Online", inline: true },
+                        { name: "⏱ Uptime", value: `${Math.floor(process.uptime())}s`, inline: true },
+                        { name: "🌍 Servers", value: `${client.guilds.cache.size}`, inline: true }
+                    )
+                    .setColor("Green")
+            ]
+        });
+    }
+});
+
+// ===== MESSAGE COMMAND =====
 client.on('messageCreate', async (msg) => {
     if (msg.author.bot) return;
 
@@ -113,37 +139,32 @@ client.on('messageCreate', async (msg) => {
     const cmd = args[0];
 
     // ===== KEY =====
-    const { data } = await loadKeys();
-    if (data[msg.content.toLowerCase()]) {
-        return msg.reply(`🔑 ${data[msg.content.toLowerCase()].value}`);
+    const keys = await loadKeys();
+    if (keys[msg.content.toLowerCase()]) {
+        return msg.reply(`🔑 ${keys[msg.content.toLowerCase()].value}`);
     }
 
     // ===== PLAY =====
     if (cmd === '+play') {
 
-        if (!msg.member.voice.channel)
-            return msg.reply("❌ Vào voice trước");
+        const vc = msg.member.voice.channel;
+        if (!vc) return msg.reply("❌ Vào voice trước!");
 
         const query = args.slice(1).join(' ');
-        let song;
+        if (!query) return msg.reply("❌ Nhập tên!");
 
-        try {
-            const yt = await play.search(query, { limit: 1 });
+        const result = await play.search(query, { limit: 1 });
 
-            song = {
-                title: yt[0].title,
-                url: yt[0].url
-            };
-
-        } catch {
-            return msg.reply("❌ Không tìm thấy");
-        }
+        const song = {
+            title: result[0].title,
+            url: result[0].url
+        };
 
         let q = queue.get(msg.guild.id);
 
         if (!q) {
             q = {
-                voiceChannel: msg.member.voice.channel,
+                voiceChannel: vc,
                 connection: null,
                 player: createAudioPlayer(),
                 songs: []
@@ -153,7 +174,7 @@ client.on('messageCreate', async (msg) => {
             q.songs.push(song);
 
             const connection = joinVoiceChannel({
-                channelId: q.voiceChannel.id,
+                channelId: vc.id,
                 guildId: msg.guild.id,
                 adapterCreator: msg.guild.voiceAdapterCreator
             });
@@ -167,27 +188,7 @@ client.on('messageCreate', async (msg) => {
             q.songs.push(song);
         }
 
-        const embed = new EmbedBuilder()
-            .setTitle("🎶 Now Playing")
-            .setDescription(`[${song.title}](${song.url})`)
-            .setColor("Green");
-
-        msg.reply({ embeds: [embed] });
-    }
-
-    // ===== VIDEO =====
-    if (cmd === '+taivideo') {
-        const url = args[1];
-        if (!url) return msg.reply("❌ Nhập link");
-
-        try {
-            const api = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            const video = api.data?.data?.play;
-
-            msg.reply(video || "❌ Lỗi");
-        } catch {
-            msg.reply("❌ Lỗi video");
-        }
+        msg.reply(`🎶 ${song.title}`);
     }
 
     // ===== SKIP =====
@@ -206,7 +207,27 @@ client.on('messageCreate', async (msg) => {
         q.player.stop();
         msg.reply("⏹️ Stop");
     }
+
+    // ===== TAIVIDEO =====
+    if (cmd === '+taivideo') {
+        const url = args[1];
+        if (!url) return msg.reply("❌ Nhập link");
+
+        msg.reply("⏳ Đang xử lý...");
+
+        try {
+            const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            const video = res.data?.data?.play;
+
+            if (!video) return msg.reply("❌ Lỗi video");
+
+            msg.reply(video);
+
+        } catch {
+            msg.reply("❌ Lỗi xử lý video");
+        }
+    }
 });
 
-// ================= LOGIN =================
+// ===== LOGIN =====
 client.login(process.env.TOKEN);
