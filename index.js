@@ -1,96 +1,21 @@
 require('dotenv').config();
+
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const {
-    Client,
-    GatewayIntentBits,
-    SlashCommandBuilder,
-    REST,
-    Routes
-} = require('discord.js');
+    joinVoiceChannel,
+    createAudioPlayer,
+    createAudioResource,
+    AudioPlayerStatus
+} = require('@discordjs/voice');
+
+const express = require('express');
 const axios = require('axios');
+const play = require('play-dl');
 
 // ===== CONFIG =====
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const REPO = process.env.GITHUB_REPO;
-const FILE = "keys.json";
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-const OWNER_ID = "1455796719378895022";
-
-// ===== CACHE =====
-let cache = {};
-let cacheSHA = null;
-let lastFetch = 0;
-
-// =======================
-// 📥 LOAD KEYS (ANTI CRASH)
-// =======================
-async function loadKeys() {
-    try {
-        // cache 10 giây
-        if (Date.now() - lastFetch < 10000) {
-            return { data: cache, sha: cacheSHA };
-        }
-
-        const res = await axios.get(
-            `https://api.github.com/repos/${REPO}/contents/${FILE}`,
-            {
-                headers: { Authorization: `token ${GITHUB_TOKEN}` }
-            }
-        );
-
-        let content = "";
-
-        try {
-            content = Buffer.from(res.data.content, 'base64').toString();
-            cache = JSON.parse(content);
-        } catch {
-            console.log("⚠️ JSON lỗi → reset file");
-            cache = {};
-        }
-
-        cacheSHA = res.data.sha;
-        lastFetch = Date.now();
-
-        return { data: cache, sha: cacheSHA };
-
-    } catch (err) {
-        console.log("⚠️ GitHub lỗi → dùng cache");
-        return { data: cache, sha: cacheSHA };
-    }
-}
-
-// =======================
-// 💾 SAVE KEYS (ANTI CRASH)
-// =======================
-async function saveKeys(data, sha) {
-    try {
-        cache = data;
-
-        const content = Buffer.from(
-            JSON.stringify(data, null, 2)
-        ).toString('base64');
-
-        await axios.put(
-            `https://api.github.com/repos/${REPO}/contents/${FILE}`,
-            {
-                message: "update keys",
-                content,
-                sha: sha || undefined
-            },
-            {
-                headers: { Authorization: `token ${GITHUB_TOKEN}` }
-            }
-        );
-
-    } catch (err) {
-        console.log("❌ Save lỗi nhưng bot vẫn sống");
-    }
-}
-
-// =======================
-// 🤖 CLIENT
-// =======================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -99,169 +24,189 @@ const client = new Client({
     ]
 });
 
-// =======================
-// 📌 COMMANDS
-// =======================
-const commands = [
+const queue = new Map();
 
-    new SlashCommandBuilder()
-        .setName('addkey')
-        .setDescription('Thêm key')
-        .addStringOption(o =>
-            o.setName('name').setDescription('Tên key').setRequired(true))
-        .addStringOption(o =>
-            o.setName('value').setDescription('Value').setRequired(true))
-        .addIntegerOption(o =>
-            o.setName('time').setDescription('Phút').setRequired(false)),
+// ===== DASHBOARD WEB =====
+app.get('/', (req, res) => {
+    res.send(`
+    <h1>🤖 Bot V7 Online</h1>
+    <p>Status: OK</p>
+    <p>Servers: ${client.guilds.cache.size}</p>
+    `);
+});
 
-    new SlashCommandBuilder()
-        .setName('delkey')
-        .setDescription('Xoá key')
-        .addStringOption(o =>
-            o.setName('name').setDescription('Tên key').setRequired(true)),
+app.get('/status', (req, res) => {
+    res.json({
+        online: true,
+        guilds: client.guilds.cache.size,
+        uptime: process.uptime()
+    });
+});
 
-    new SlashCommandBuilder()
-        .setName('taivideo')
-        .setDescription('Tải video')
-        .addStringOption(o =>
-            o.setName('link').setDescription('Link video').setRequired(true))
+app.listen(PORT, () => console.log("🌐 Dashboard running"));
 
-].map(c => c.toJSON());
+// ================= KEY SYSTEM =================
+let cache = {};
 
-// =======================
-// 📌 REGISTER
-// =======================
-const rest = new REST({ version: '10' }).setToken(TOKEN);
-
-(async () => {
+async function loadKeys() {
     try {
-        await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-        console.log("✅ Slash OK");
+        const res = await axios.get(
+            `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
+            { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
+        );
+
+        const content = Buffer.from(res.data.content, 'base64').toString();
+
+        try {
+            cache = JSON.parse(content);
+        } catch {
+            cache = {};
+        }
+
+        return { data: cache, sha: res.data.sha };
+
     } catch {
-        console.log("❌ Register lỗi nhưng bot vẫn chạy");
+        return { data: cache, sha: null };
     }
-})();
+}
 
-// =======================
-// READY
-// =======================
-client.once('clientReady', () => {
-    console.log("🤖 Bot Online");
-});
+// ================= MUSIC =================
+async function playMusic(guild, song) {
+    const q = queue.get(guild.id);
 
-// =======================
-// COMMAND HANDLER
-// =======================
-client.on('interactionCreate', async (i) => {
-    if (!i.isChatInputCommand()) return;
+    if (!song) {
+        q.connection.destroy();
+        queue.delete(guild.id);
+        return;
+    }
 
     try {
+        const stream = await play.stream(song.url);
 
-        // ===== ADD KEY =====
-        if (i.commandName === 'addkey') {
+        const resource = createAudioResource(stream.stream, {
+            inputType: stream.type
+        });
 
-            if (i.user.id !== OWNER_ID)
-                return i.reply({ content: '❌ Không có quyền', ephemeral: true });
+        q.player.play(resource);
 
-            const name = i.options.getString('name').toLowerCase();
-            const value = i.options.getString('value');
-            const time = i.options.getInteger('time');
+        q.player.once(AudioPlayerStatus.Idle, () => {
+            q.songs.shift();
+            playMusic(guild, q.songs[0]);
+        });
 
-            let expire = null;
-            if (time) expire = Date.now() + time * 60000;
-
-            const { data, sha } = await loadKeys();
-
-            data[name] = { value, expire };
-
-            await saveKeys(data, sha);
-
-            return i.reply('✅ Add Key Successful');
-        }
-
-        // ===== DELETE =====
-        if (i.commandName === 'delkey') {
-
-            if (i.user.id !== OWNER_ID)
-                return i.reply({ content: '❌ Không có quyền', ephemeral: true });
-
-            const name = i.options.getString('name').toLowerCase();
-
-            const { data, sha } = await loadKeys();
-
-            delete data[name];
-
-            await saveKeys(data, sha);
-
-            return i.reply('🗑️ Đã xoá');
-        }
-
-        // ===== VIDEO =====
-        if (i.commandName === 'taivideo') {
-
-            const url = i.options.getString('link');
-
-            await i.reply('⏳ Đang xử lý...');
-
-            try {
-                const api = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-
-                const videoUrl = api.data?.data?.play;
-
-                if (!videoUrl)
-                    return i.editReply('❌ Không lấy được video');
-
-                const video = await axios.get(videoUrl, { responseType: 'arraybuffer' });
-
-                const size = video.data.length / 1024 / 1024;
-
-                if (size > 25)
-                    return i.editReply(`❌ Video quá nặng (${size.toFixed(2)}MB)\n👉 ${videoUrl}`);
-
-                await i.editReply({
-                    files: [{
-                        attachment: Buffer.from(video.data),
-                        name: 'video.mp4'
-                    }]
-                });
-
-            } catch {
-                i.editReply('❌ Lỗi xử lý video');
-            }
-        }
-
-    } catch (err) {
-        console.log("❌ Lỗi nhưng bot không crash");
+    } catch {
+        q.songs.shift();
+        playMusic(guild, q.songs[0]);
     }
+}
+
+// ================= READY =================
+client.once('clientReady', () => {
+    console.log("🤖 V7 Online");
 });
 
-// =======================
-// MESSAGE CHECK KEY
-// =======================
+// ================= COMMAND =================
 client.on('messageCreate', async (msg) => {
     if (msg.author.bot) return;
 
-    try {
-        const text = msg.content.toLowerCase();
+    const args = msg.content.split(' ');
+    const cmd = args[0];
 
-        const { data } = await loadKeys();
+    // ===== KEY =====
+    const { data } = await loadKeys();
+    if (data[msg.content.toLowerCase()]) {
+        return msg.reply(`🔑 ${data[msg.content.toLowerCase()].value}`);
+    }
 
-        const key = data[text];
+    // ===== PLAY =====
+    if (cmd === '+play') {
 
-        if (!key) return;
+        if (!msg.member.voice.channel)
+            return msg.reply("❌ Vào voice trước");
 
-        if (key.expire && Date.now() > key.expire) return;
+        const query = args.slice(1).join(' ');
+        let song;
 
-        msg.reply(`🔑 ${key.value}`);
+        try {
+            const yt = await play.search(query, { limit: 1 });
 
-    } catch {
-        console.log("⚠️ Lỗi message nhưng bot vẫn sống");
+            song = {
+                title: yt[0].title,
+                url: yt[0].url
+            };
+
+        } catch {
+            return msg.reply("❌ Không tìm thấy");
+        }
+
+        let q = queue.get(msg.guild.id);
+
+        if (!q) {
+            q = {
+                voiceChannel: msg.member.voice.channel,
+                connection: null,
+                player: createAudioPlayer(),
+                songs: []
+            };
+
+            queue.set(msg.guild.id, q);
+            q.songs.push(song);
+
+            const connection = joinVoiceChannel({
+                channelId: q.voiceChannel.id,
+                guildId: msg.guild.id,
+                adapterCreator: msg.guild.voiceAdapterCreator
+            });
+
+            q.connection = connection;
+            connection.subscribe(q.player);
+
+            playMusic(msg.guild, q.songs[0]);
+
+        } else {
+            q.songs.push(song);
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle("🎶 Now Playing")
+            .setDescription(`[${song.title}](${song.url})`)
+            .setColor("Green");
+
+        msg.reply({ embeds: [embed] });
+    }
+
+    // ===== VIDEO =====
+    if (cmd === '+taivideo') {
+        const url = args[1];
+        if (!url) return msg.reply("❌ Nhập link");
+
+        try {
+            const api = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            const video = api.data?.data?.play;
+
+            msg.reply(video || "❌ Lỗi");
+        } catch {
+            msg.reply("❌ Lỗi video");
+        }
+    }
+
+    // ===== SKIP =====
+    if (cmd === '+skip') {
+        const q = queue.get(msg.guild.id);
+        if (!q) return;
+        q.player.stop();
+        msg.reply("⏭️ Skip");
+    }
+
+    // ===== STOP =====
+    if (cmd === '+stop') {
+        const q = queue.get(msg.guild.id);
+        if (!q) return;
+        q.songs = [];
+        q.player.stop();
+        msg.reply("⏹️ Stop");
     }
 });
 
-// =======================
-// LOGIN
-// =======================
-client.login(TOKEN).catch(() => {
-    console.log("❌ Token lỗi nhưng bot không crash");
-});
+// ================= LOGIN =================
+client.login(process.env.TOKEN);
