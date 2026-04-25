@@ -3,7 +3,6 @@ require('dotenv').config();
 const {
     Client,
     GatewayIntentBits,
-    SlashCommandBuilder,
     REST,
     Routes,
     ActionRowBuilder,
@@ -14,18 +13,19 @@ const {
 } = require('discord.js');
 
 const axios = require('axios');
-
-const OWNER_ID = "1455796719378895022";
+const express = require('express');
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
+const OWNER_ID = process.env.OWNER_ID;
+
 // ===== ANTI CRASH =====
 process.on('uncaughtException', console.log);
 process.on('unhandledRejection', console.log);
 
-// ===== CACHE =====
+// ===== KEY CACHE =====
 let keyCache = {};
 let cacheSHA = "";
 
@@ -37,211 +37,163 @@ async function loadKeys() {
             { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
         );
 
-        const content = Buffer.from(res.data.content, 'base64').toString();
-        keyCache = JSON.parse(content);
+        keyCache = JSON.parse(Buffer.from(res.data.content, 'base64').toString());
         cacheSHA = res.data.sha;
 
-        return keyCache;
     } catch (err) {
         console.log("Load key lỗi:", err.message);
-        return keyCache;
     }
 }
 
 // ===== SAVE KEYS =====
 async function saveKeys() {
-    try {
-        const content = Buffer.from(JSON.stringify(keyCache, null, 2)).toString('base64');
+    const content = Buffer.from(JSON.stringify(keyCache, null, 2)).toString('base64');
 
-        await axios.put(
-            `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
-            {
-                message: "update keys",
-                content,
-                sha: cacheSHA
-            },
-            { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
+    await axios.put(
+        `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
+        {
+            message: "update key",
+            content,
+            sha: cacheSHA
+        },
+        { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
+    );
+}
+
+// ===== COMMAND =====
+const commands = [
+    {
+        name: "addkey",
+        description: "Thêm key",
+        options: [
+            { name: "name", description: "Tên key", type: 3, required: true },
+            { name: "value", description: "Value", type: 3, required: true }
+        ]
+    },
+    { name: "deletekey", description: "Xoá key" },
+    { name: "status", description: "Xem trạng thái bot" }
+];
+
+// ===== REGISTER =====
+async function registerAll() {
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+    for (const g of client.guilds.cache.map(g => g.id)) {
+        await rest.put(
+            Routes.applicationGuildCommands(process.env.CLIENT_ID, g),
+            { body: commands }
         );
-    } catch (err) {
-        console.log("Save key lỗi:", err.message);
     }
 }
 
-// ===== VIDEO API =====
-async function getVideo(url) {
+// ===== STATUS UI =====
+function buildStatus() {
 
-    try {
-        const res = await axios.get(`https://api.tiklydown.me/api/download?url=${url}`);
-        if (res.data.video?.noWatermark) return res.data.video.noWatermark;
-    } catch {}
+    const keys = Object.keys(keyCache).length;
+    const guilds = client.guilds.cache.size;
 
-    try {
-        const res = await axios.get(`https://api.savetube.me/video?url=${url}`);
-        if (res.data.data?.download) return res.data.data.download;
-    } catch {}
+    const ping = client.ws.ping;
 
-    return null;
+    const up = Math.floor(process.uptime());
+    const h = Math.floor(up / 3600);
+    const m = Math.floor((up % 3600) / 60);
+
+    return new EmbedBuilder()
+        .setColor("Green")
+        .setTitle("🇻🇳 VIETNAM APP DISCORD")
+        .setThumbnail(client.user.displayAvatarURL())
+        .addFields(
+            { name: "📊 TRẠNG THÁI", value: "🟢 HOẠT ĐỘNG" },
+            { name: "👑 OWNER", value: `<@${OWNER_ID}>` },
+            { name: "🔑 KEYS", value: `${keys}`, inline: true },
+            { name: "🌐 MÁY CHỦ", value: `${guilds}`, inline: true },
+            { name: "⚡ PING", value: `${ping}ms`, inline: true },
+            { name: "⏳ UPTIME", value: `${h}h ${m}m`, inline: true }
+        )
+        .setFooter({
+            text: "🇻🇳 CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM | ĐỘC LẬP - TỰ DO - HẠNH PHÚC"
+        });
 }
 
 // ===== READY =====
 client.once('clientReady', async () => {
-    console.log("🔥 V8 PRO MAX ONLINE");
+    console.log("🔥 ONLINE 24/7 PRO");
 
     await loadKeys();
-
-    const commands = [
-        new SlashCommandBuilder()
-            .setName('addkey')
-            .setDescription('Thêm key')
-            .addStringOption(o => o.setName('name').setRequired(true))
-            .addStringOption(o => o.setName('value').setRequired(true)),
-
-        new SlashCommandBuilder()
-            .setName('deletekey')
-            .setDescription('Xoá key'),
-
-        new SlashCommandBuilder()
-            .setName('taivideo')
-            .setDescription('Tải video')
-            .addStringOption(o => o.setName('url').setRequired(true)),
-
-        new SlashCommandBuilder()
-            .setName('status')
-            .setDescription('Check trạng thái bot')
-    ].map(c => c.toJSON());
-
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-
-    await rest.put(
-        Routes.applicationCommands(process.env.CLIENT_ID),
-        { body: commands }
-    );
+    await registerAll();
 });
 
-// ===== COMMAND =====
-client.on('interactionCreate', async (i) => {
+// ===== INTERACTION =====
+client.on('interactionCreate', async i => {
 
     if (i.isChatInputCommand()) {
 
-        // ===== STATUS =====
-        if (i.commandName === 'status') {
-            return i.reply(`🟢 Bot Online\nKeys: ${Object.keys(keyCache).length}`);
+        if (i.commandName === "status") {
+
+            const btn = new ButtonBuilder()
+                .setCustomId("refresh")
+                .setLabel("🔄 Refresh")
+                .setStyle(ButtonStyle.Primary);
+
+            return i.reply({
+                embeds: [buildStatus()],
+                components: [new ActionRowBuilder().addComponents(btn)],
+                ephemeral: true
+            });
         }
 
-        // ===== ADD KEY =====
-        if (i.commandName === 'addkey') {
+        if (i.commandName === "addkey") {
 
             if (i.user.id !== OWNER_ID)
-                return i.reply({ content: "❌ Không có quyền!", ephemeral: true });
+                return i.reply({ content: "❌ Không có quyền", ephemeral: true });
 
             const name = i.options.getString('name').toLowerCase();
             const value = i.options.getString('value');
 
             keyCache[name] = { value };
-
             await saveKeys();
 
             return i.reply("✅ Add Key Successful");
         }
 
-        // ===== DELETE KEY =====
-        if (i.commandName === 'deletekey') {
-
-            if (i.user.id !== OWNER_ID)
-                return i.reply({ content: "❌ Không có quyền!", ephemeral: true });
+        if (i.commandName === "deletekey") {
 
             const menu = new StringSelectMenuBuilder()
-                .setCustomId('delete_key')
-                .setPlaceholder('Chọn key')
-                .addOptions(
-                    Object.keys(keyCache).map(k => ({
-                        label: k,
-                        value: k
-                    }))
-                );
-
-            const row = new ActionRowBuilder().addComponents(menu);
+                .setCustomId("del")
+                .addOptions(Object.keys(keyCache).map(k => ({ label: k, value: k })));
 
             return i.reply({
-                content: "🗑 Chọn key:",
-                components: [row],
+                content: "Chọn key",
+                components: [new ActionRowBuilder().addComponents(menu)],
                 ephemeral: true
             });
         }
-
-        // ===== TAIVIDEO =====
-        if (i.commandName === 'taivideo') {
-
-            const url = i.options.getString('url');
-
-            await i.reply("⏳ Đang xử lý video...");
-
-            const video = await getVideo(url);
-
-            if (!video)
-                return i.editReply("❌ Không tải được video!");
-
-            try {
-                await i.editReply({
-                    content: "🎬 Video:",
-                    files: [video]
-                });
-            } catch {
-                i.editReply(`⚠️ Video quá nặng!\n👉 ${video}`);
-            }
-        }
     }
 
-    // ===== DELETE MENU =====
+    if (i.isButton() && i.customId === "refresh") {
+        return i.update({ embeds: [buildStatus()] });
+    }
+
     if (i.isStringSelectMenu()) {
-
-        const key = i.values[0];
-
-        delete keyCache[key];
+        delete keyCache[i.values[0]];
         await saveKeys();
-
-        i.update({ content: `✅ Đã xoá ${key}`, components: [] });
-    }
-
-    // ===== COPY KEY =====
-    if (i.isButton()) {
-
-        const key = i.customId.replace("copy_", "");
-
-        return i.reply({
-            content: keyCache[key]?.value || "Không tồn tại",
-            ephemeral: true
-        });
+        i.update({ content: "✅ Đã xoá", components: [] });
     }
 });
 
-// ===== KEY MESSAGE =====
-client.on('messageCreate', async (msg) => {
+// ===== EXPRESS (UPTIME) =====
+const app = express();
 
-    if (msg.author.bot) return;
-
-    const key = msg.content.toLowerCase();
-
-    if (keyCache[key]) {
-
-        const embed = new EmbedBuilder()
-            .setTitle(`🔑 ${key}`)
-            .setDescription(`\`\`\`${keyCache[key].value}\`\`\``)
-            .setColor("Green");
-
-        const btn = new ButtonBuilder()
-            .setCustomId(`copy_${key}`)
-            .setLabel("📱 Copy")
-            .setStyle(ButtonStyle.Primary);
-
-        const row = new ActionRowBuilder().addComponents(btn);
-
-        msg.reply({
-            embeds: [embed],
-            components: [row]
-        });
-    }
+app.get('/', (req, res) => res.send("🤖 Bot Alive"));
+app.get('/ping', (req, res) => res.json({ uptime: process.uptime() }));
+app.get('/heavy', (req, res) => {
+    let x = 0;
+    for (let i = 0; i < 1e6; i++) x += i;
+    res.send("ok");
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🌐 Port ${PORT}`));
 
 // ===== LOGIN =====
-client.login(process.env.TOKEN); 
+client.login(process.env.TOKEN);
