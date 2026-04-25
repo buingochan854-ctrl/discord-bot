@@ -5,248 +5,243 @@ const {
     GatewayIntentBits,
     SlashCommandBuilder,
     REST,
-    Routes
+    Routes,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    StringSelectMenuBuilder,
+    EmbedBuilder
 } = require('discord.js');
 
-const {
-    joinVoiceChannel,
-    createAudioPlayer,
-    createAudioResource,
-    AudioPlayerStatus
-} = require('@discordjs/voice');
-
 const axios = require('axios');
-const play = require('play-dl');
 
 const OWNER_ID = "1455796719378895022";
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
-const queue = new Map();
+// ===== ANTI CRASH =====
+process.on('uncaughtException', console.log);
+process.on('unhandledRejection', console.log);
+
+// ===== CACHE =====
 let keyCache = {};
+let cacheSHA = "";
 
-// ================= GLOBAL ANTI CRASH =================
-process.on('uncaughtException', err => {
-    console.log("🔥 Uncaught:", err.message);
-});
-
-process.on('unhandledRejection', err => {
-    console.log("🔥 Promise:", err);
-});
-
-// ================= SAFE WRAPPER =================
-function safe(fn) {
-    return async (...args) => {
-        try {
-            await fn(...args);
-        } catch (err) {
-            console.log("⚠️ Safe Error:", err.message);
-        }
-    };
-}
-
-// ================= MUSIC =================
-async function playMusic(guild, song, retry = 0) {
-    const q = queue.get(guild.id);
-
-    if (!song) {
-        console.log("⚠️ Hết nhạc - giữ voice");
-        return;
-    }
-
+// ===== LOAD KEYS =====
+async function loadKeys() {
     try {
-        const stream = await play.stream(song.url);
-
-        const resource = createAudioResource(stream.stream, {
-            inputType: stream.type
-        });
-
-        q.player.play(resource);
-
-        q.player.once(AudioPlayerStatus.Idle, () => {
-            q.songs.shift();
-            playMusic(guild, q.songs[0]);
-        });
-
-    } catch (err) {
-        console.log("❌ Stream lỗi:", err.message);
-
-        if (retry < 3) {
-            return playMusic(guild, song, retry + 1);
-        }
-
-        q.songs.shift();
-        playMusic(guild, q.songs[0]);
-    }
-}
-
-// ================= READY =================
-client.once('clientReady', async () => {
-    console.log("🤖 AntiCrash V2 Online");
-
-    try {
-        const commands = [
-            new SlashCommandBuilder()
-                .setName('status')
-                .setDescription('Xem trạng thái'),
-
-            new SlashCommandBuilder()
-                .setName('addkey')
-                .setDescription('Thêm key')
-                .addStringOption(o =>
-                    o.setName('name')
-                     .setDescription('Tên key')
-                     .setRequired(true))
-                .addStringOption(o =>
-                    o.setName('value')
-                     .setDescription('Value key')
-                     .setRequired(true))
-        ].map(c => c.toJSON());
-
-        const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-
-        await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
-            { body: commands }
+        const res = await axios.get(
+            `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
+            { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
         );
 
-        console.log("✅ Slash OK");
+        const content = Buffer.from(res.data.content, 'base64').toString();
+        keyCache = JSON.parse(content);
+        cacheSHA = res.data.sha;
 
+        return keyCache;
     } catch (err) {
-        console.log("❌ Slash lỗi:", err.message);
+        console.log("Load key lỗi:", err.message);
+        return keyCache;
+    }
+}
+
+// ===== SAVE KEYS =====
+async function saveKeys() {
+    try {
+        const content = Buffer.from(JSON.stringify(keyCache, null, 2)).toString('base64');
+
+        await axios.put(
+            `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
+            {
+                message: "update keys",
+                content,
+                sha: cacheSHA
+            },
+            { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
+        );
+    } catch (err) {
+        console.log("Save key lỗi:", err.message);
+    }
+}
+
+// ===== VIDEO API =====
+async function getVideo(url) {
+
+    try {
+        const res = await axios.get(`https://api.tiklydown.me/api/download?url=${url}`);
+        if (res.data.video?.noWatermark) return res.data.video.noWatermark;
+    } catch {}
+
+    try {
+        const res = await axios.get(`https://api.savetube.me/video?url=${url}`);
+        if (res.data.data?.download) return res.data.data.download;
+    } catch {}
+
+    return null;
+}
+
+// ===== READY =====
+client.once('clientReady', async () => {
+    console.log("🔥 V8 PRO MAX ONLINE");
+
+    await loadKeys();
+
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('addkey')
+            .setDescription('Thêm key')
+            .addStringOption(o => o.setName('name').setRequired(true))
+            .addStringOption(o => o.setName('value').setRequired(true)),
+
+        new SlashCommandBuilder()
+            .setName('deletekey')
+            .setDescription('Xoá key'),
+
+        new SlashCommandBuilder()
+            .setName('taivideo')
+            .setDescription('Tải video')
+            .addStringOption(o => o.setName('url').setRequired(true)),
+
+        new SlashCommandBuilder()
+            .setName('status')
+            .setDescription('Check trạng thái bot')
+    ].map(c => c.toJSON());
+
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+    await rest.put(
+        Routes.applicationCommands(process.env.CLIENT_ID),
+        { body: commands }
+    );
+});
+
+// ===== COMMAND =====
+client.on('interactionCreate', async (i) => {
+
+    if (i.isChatInputCommand()) {
+
+        // ===== STATUS =====
+        if (i.commandName === 'status') {
+            return i.reply(`🟢 Bot Online\nKeys: ${Object.keys(keyCache).length}`);
+        }
+
+        // ===== ADD KEY =====
+        if (i.commandName === 'addkey') {
+
+            if (i.user.id !== OWNER_ID)
+                return i.reply({ content: "❌ Không có quyền!", ephemeral: true });
+
+            const name = i.options.getString('name').toLowerCase();
+            const value = i.options.getString('value');
+
+            keyCache[name] = { value };
+
+            await saveKeys();
+
+            return i.reply("✅ Add Key Successful");
+        }
+
+        // ===== DELETE KEY =====
+        if (i.commandName === 'deletekey') {
+
+            if (i.user.id !== OWNER_ID)
+                return i.reply({ content: "❌ Không có quyền!", ephemeral: true });
+
+            const menu = new StringSelectMenuBuilder()
+                .setCustomId('delete_key')
+                .setPlaceholder('Chọn key')
+                .addOptions(
+                    Object.keys(keyCache).map(k => ({
+                        label: k,
+                        value: k
+                    }))
+                );
+
+            const row = new ActionRowBuilder().addComponents(menu);
+
+            return i.reply({
+                content: "🗑 Chọn key:",
+                components: [row],
+                ephemeral: true
+            });
+        }
+
+        // ===== TAIVIDEO =====
+        if (i.commandName === 'taivideo') {
+
+            const url = i.options.getString('url');
+
+            await i.reply("⏳ Đang xử lý video...");
+
+            const video = await getVideo(url);
+
+            if (!video)
+                return i.editReply("❌ Không tải được video!");
+
+            try {
+                await i.editReply({
+                    content: "🎬 Video:",
+                    files: [video]
+                });
+            } catch {
+                i.editReply(`⚠️ Video quá nặng!\n👉 ${video}`);
+            }
+        }
+    }
+
+    // ===== DELETE MENU =====
+    if (i.isStringSelectMenu()) {
+
+        const key = i.values[0];
+
+        delete keyCache[key];
+        await saveKeys();
+
+        i.update({ content: `✅ Đã xoá ${key}`, components: [] });
+    }
+
+    // ===== COPY KEY =====
+    if (i.isButton()) {
+
+        const key = i.customId.replace("copy_", "");
+
+        return i.reply({
+            content: keyCache[key]?.value || "Không tồn tại",
+            ephemeral: true
+        });
     }
 });
 
-// ================= SLASH =================
-client.on('interactionCreate', safe(async (i) => {
-
-    if (!i.isChatInputCommand()) return;
-
-    if (i.commandName === 'status') {
-        return i.reply({
-            content: `🟢 Online | ${client.guilds.cache.size} servers`
-        });
-    }
-
-    if (i.commandName === 'addkey') {
-
-        if (i.user.id !== OWNER_ID)
-            return i.reply({ content: "❌ Không có quyền", ephemeral: true });
-
-        const name = i.options.getString('name');
-        const value = i.options.getString('value');
-
-        keyCache[name.toLowerCase()] = { value };
-
-        return i.reply("✅ Add Key Successful");
-    }
-}));
-
-// ================= MESSAGE =================
-client.on('messageCreate', safe(async (msg) => {
+// ===== KEY MESSAGE =====
+client.on('messageCreate', async (msg) => {
 
     if (msg.author.bot) return;
 
-    const args = msg.content.split(' ');
-    const cmd = args[0];
+    const key = msg.content.toLowerCase();
 
-    // ===== KEY =====
-    if (keyCache[msg.content.toLowerCase()]) {
-        return msg.reply(`🔑 ${keyCache[msg.content.toLowerCase()].value}`);
+    if (keyCache[key]) {
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🔑 ${key}`)
+            .setDescription(`\`\`\`${keyCache[key].value}\`\`\``)
+            .setColor("Green");
+
+        const btn = new ButtonBuilder()
+            .setCustomId(`copy_${key}`)
+            .setLabel("📱 Copy")
+            .setStyle(ButtonStyle.Primary);
+
+        const row = new ActionRowBuilder().addComponents(btn);
+
+        msg.reply({
+            embeds: [embed],
+            components: [row]
+        });
     }
-
-    // ===== PLAY =====
-    if (cmd === '+play') {
-
-        const vc = msg.member.voice.channel;
-        if (!vc) return msg.reply("❌ Vào voice!");
-
-        const query = args.slice(1).join(' ');
-        if (!query) return msg.reply("❌ Nhập tên!");
-
-        const result = await play.search(query, { limit: 1 });
-
-        if (!result.length) return msg.reply("❌ Không tìm thấy!");
-
-        const song = {
-            title: result[0].title,
-            url: result[0].url
-        };
-
-        let q = queue.get(msg.guild.id);
-
-        if (!q) {
-            q = {
-                voiceChannel: vc,
-                connection: null,
-                player: createAudioPlayer(),
-                songs: []
-            };
-
-            queue.set(msg.guild.id, q);
-            q.songs.push(song);
-
-            const connection = joinVoiceChannel({
-                channelId: vc.id,
-                guildId: msg.guild.id,
-                adapterCreator: msg.guild.voiceAdapterCreator
-            });
-
-            q.connection = connection;
-            connection.subscribe(q.player);
-
-            playMusic(msg.guild, q.songs[0]);
-
-        } else {
-            q.songs.push(song);
-        }
-
-        msg.reply(`🎶 ${song.title}`);
-    }
-
-    // ===== TAIVIDEO =====
-    if (cmd === '+taivideo') {
-
-        const url = args[1];
-        if (!url) return msg.reply("❌ Nhập link");
-
-        msg.reply("⏳ Đang xử lý...");
-
-        try {
-            const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            const video = res.data?.data?.play;
-
-            msg.reply(video || "❌ Lỗi video");
-
-        } catch {
-            msg.reply("❌ API lỗi");
-        }
-    }
-
-    // ===== SKIP =====
-    if (cmd === '+skip') {
-        const q = queue.get(msg.guild.id);
-        if (!q) return;
-        q.player.stop();
-    }
-
-    // ===== STOP =====
-    if (cmd === '+stop') {
-        const q = queue.get(msg.guild.id);
-        if (!q) return;
-        q.songs = [];
-        q.player.stop();
-    }
-}));
-
-// ================= LOGIN =================
-client.login(process.env.TOKEN).catch(err => {
-    console.log("❌ LOGIN:", err.message);
 });
+
+// ===== LOGIN =====
+client.login(process.env.TOKEN); 
