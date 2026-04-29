@@ -12,53 +12,19 @@ const {
     EmbedBuilder
 } = require('discord.js');
 
-const axios = require('axios');
-const express = require('express');
-
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+    intents: [GatewayIntentBits.Guilds]
 });
 
 const OWNER_ID = process.env.OWNER_ID;
 
+// ===== DATA =====
+let keyCache = {};
+const userUI = new Map(); // lưu UI user
+
 // ===== ANTI CRASH =====
 process.on('uncaughtException', console.log);
 process.on('unhandledRejection', console.log);
-
-// ===== KEY CACHE =====
-let keyCache = {};
-let cacheSHA = "";
-
-// ===== LOAD KEYS =====
-async function loadKeys() {
-    try {
-        const res = await axios.get(
-            `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
-            { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
-        );
-
-        keyCache = JSON.parse(Buffer.from(res.data.content, 'base64').toString());
-        cacheSHA = res.data.sha;
-
-    } catch (err) {
-        console.log("Load key lỗi:", err.message);
-    }
-}
-
-// ===== SAVE KEYS =====
-async function saveKeys() {
-    const content = Buffer.from(JSON.stringify(keyCache, null, 2)).toString('base64');
-
-    await axios.put(
-        `https://api.github.com/repos/${process.env.GITHUB_REPO}/contents/keys.json`,
-        {
-            message: "update key",
-            content,
-            sha: cacheSHA
-        },
-        { headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` } }
-    );
-}
 
 // ===== COMMAND =====
 const commands = [
@@ -66,134 +32,177 @@ const commands = [
         name: "addkey",
         description: "Thêm key",
         options: [
-            { name: "name", description: "Tên key", type: 3, required: true },
-            { name: "value", description: "Value", type: 3, required: true }
+            { name: "name", type: 3, required: true },
+            { name: "value", type: 3, required: true }
         ]
     },
-    { name: "deletekey", description: "Xoá key" },
-    { name: "status", description: "Xem trạng thái bot" }
+    {
+        name: "getkey",
+        description: "Lấy key",
+        options: [
+            { name: "name", type: 3, required: true }
+        ]
+    }
 ];
 
 // ===== REGISTER =====
-async function registerAll() {
+async function register() {
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-    for (const g of client.guilds.cache.map(g => g.id)) {
-        await rest.put(
-            Routes.applicationGuildCommands(process.env.CLIENT_ID, g),
-            { body: commands }
-        );
-    }
-}
-
-// ===== STATUS UI =====
-function buildStatus() {
-
-    const keys = Object.keys(keyCache).length;
-    const guilds = client.guilds.cache.size;
-
-    const ping = client.ws.ping;
-
-    const up = Math.floor(process.uptime());
-    const h = Math.floor(up / 3600);
-    const m = Math.floor((up % 3600) / 60);
-
-    return new EmbedBuilder()
-        .setColor("Green")
-        .setTitle("🇻🇳 VIETNAM APP DISCORD")
-        .setThumbnail(client.user.displayAvatarURL())
-        .addFields(
-            { name: "📊 TRẠNG THÁI", value: "🟢 HOẠT ĐỘNG" },
-            { name: "👑 OWNER", value: `<@${OWNER_ID}>` },
-            { name: "🔑 KEYS", value: `${keys}`, inline: true },
-            { name: "🌐 MÁY CHỦ", value: `${guilds}`, inline: true },
-            { name: "⚡ PING", value: `${ping}ms`, inline: true },
-            { name: "⏳ UPTIME", value: `${h}h ${m}m`, inline: true }
-        )
-        .setFooter({
-            text: "🇻🇳 CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM | ĐỘC LẬP - TỰ DO - HẠNH PHÚC"
-        });
+    await rest.put(
+        Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+        { body: commands }
+    );
 }
 
 // ===== READY =====
 client.once('clientReady', async () => {
-    console.log("🔥 ONLINE 24/7 PRO");
-
-    await loadKeys();
-    await registerAll();
+    console.log("🔥 UI SYSTEM ONLINE");
+    await register();
 });
+
+// ===== FUNCTION HIỂN THỊ KEY =====
+function sendKeyUI(i, keyName, keyValue) {
+
+    const mode = userUI.get(i.user.id) || "normal";
+
+    // ===== UI THƯỜNG =====
+    if (mode === "normal") {
+        return i.reply({
+            content: `🔑 ${keyName}\n\n${keyValue}`,
+            ephemeral: true
+        });
+    }
+
+    // ===== UI ĐẸP =====
+    const embed = new EmbedBuilder()
+        .setColor("Green")
+        .setTitle(`🔑 ${keyName}`)
+        .setDescription(`\`\`\`\n${keyValue}\n\`\`\``);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("copy_pc")
+            .setLabel("💻 Copy PC")
+            .setStyle(ButtonStyle.Primary),
+
+        new ButtonBuilder()
+            .setCustomId("copy_mobile")
+            .setLabel("📱 Copy Mobile")
+            .setStyle(ButtonStyle.Success)
+    );
+
+    return i.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true
+    });
+}
 
 // ===== INTERACTION =====
 client.on('interactionCreate', async i => {
 
+    // ===== COMMAND =====
     if (i.isChatInputCommand()) {
 
-        if (i.commandName === "status") {
-
-            const btn = new ButtonBuilder()
-                .setCustomId("refresh")
-                .setLabel("🔄 Refresh")
-                .setStyle(ButtonStyle.Primary);
-
-            return i.reply({
-                embeds: [buildStatus()],
-                components: [new ActionRowBuilder().addComponents(btn)],
-                ephemeral: true
-            });
-        }
-
+        // ===== ADD KEY =====
         if (i.commandName === "addkey") {
 
-            if (i.user.id !== OWNER_ID)
-                return i.reply({ content: "❌ Không có quyền", ephemeral: true });
+            if (i.user.id !== OWNER_ID) {
+                return i.reply({
+                    content: "❌ Không có quyền",
+                    ephemeral: true
+                });
+            }
 
             const name = i.options.getString('name').toLowerCase();
             const value = i.options.getString('value');
 
-            keyCache[name] = { value };
-            await saveKeys();
+            keyCache[name] = value;
 
-            return i.reply("✅ Add Key Successful");
-        }
-
-        if (i.commandName === "deletekey") {
-
-            const menu = new StringSelectMenuBuilder()
-                .setCustomId("del")
-                .addOptions(Object.keys(keyCache).map(k => ({ label: k, value: k })));
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId("ui_select")
+                    .setLabel("🎨 Chỉnh UI")
+                    .setStyle(ButtonStyle.Primary)
+            );
 
             return i.reply({
-                content: "Chọn key",
-                components: [new ActionRowBuilder().addComponents(menu)],
+                content: `✅ Đã thêm key: ${name}\n👉 Chọn UI hiển thị`,
+                components: [row],
+                ephemeral: true
+            });
+        }
+
+        // ===== GET KEY =====
+        if (i.commandName === "getkey") {
+
+            const name = i.options.getString('name').toLowerCase();
+
+            if (!keyCache[name]) {
+                return i.reply({
+                    content: "❌ Không tìm thấy key",
+                    ephemeral: true
+                });
+            }
+
+            return sendKeyUI(i, name, keyCache[name]);
+        }
+    }
+
+    // ===== BUTTON =====
+    if (i.isButton()) {
+
+        // ===== CHỌN UI =====
+        if (i.customId === "ui_select") {
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId("ui_fancy")
+                    .setLabel("✨ UI đẹp")
+                    .setStyle(ButtonStyle.Success),
+
+                new ButtonBuilder()
+                    .setCustomId("ui_normal")
+                    .setLabel("📄 UI thường")
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            return i.update({
+                content: "Chọn giao diện:",
+                components: [row]
+            });
+        }
+
+        // ===== SET UI =====
+        if (i.customId === "ui_fancy") {
+            userUI.set(i.user.id, "fancy");
+
+            return i.update({
+                content: "✅ Đã chọn UI đẹp",
+                components: []
+            });
+        }
+
+        if (i.customId === "ui_normal") {
+            userUI.set(i.user.id, "normal");
+
+            return i.update({
+                content: "✅ Đã chọn UI thường",
+                components: []
+            });
+        }
+
+        // ===== COPY =====
+        if (i.customId === "copy_pc" || i.customId === "copy_mobile") {
+
+            return i.reply({
+                content: "📋 Nhấn giữ để copy!",
                 ephemeral: true
             });
         }
     }
-
-    if (i.isButton() && i.customId === "refresh") {
-        return i.update({ embeds: [buildStatus()] });
-    }
-
-    if (i.isStringSelectMenu()) {
-        delete keyCache[i.values[0]];
-        await saveKeys();
-        i.update({ content: "✅ Đã xoá", components: [] });
-    }
 });
-
-// ===== EXPRESS (UPTIME) =====
-const app = express();
-
-app.get('/', (req, res) => res.send("🤖 Bot Alive"));
-app.get('/ping', (req, res) => res.json({ uptime: process.uptime() }));
-app.get('/heavy', (req, res) => {
-    let x = 0;
-    for (let i = 0; i < 1e6; i++) x += i;
-    res.send("ok");
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🌐 Port ${PORT}`));
 
 // ===== LOGIN =====
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN); 
